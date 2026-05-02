@@ -1,0 +1,83 @@
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@inject IWebHostEnvironment Env
+
+<div class="image-uploader">
+    @if (!string.IsNullOrEmpty(CurrentPath))
+    {
+        <div class="mb-2">
+            <img src="@CurrentPath" style="max-height:80px; max-width:200px; object-fit:contain; border:1px solid #e0e0e0; border-radius:4px; padding:4px;" />
+        </div>
+    }
+
+    <InputFile id="@_inputId" OnChange="HandleFile" accept="@AcceptedTypes"
+               style="display:none" />
+
+    <MudButton Variant="Variant.Outlined" Size="Size.Small"
+               StartIcon="@Icons.Material.Filled.Upload"
+               OnClick="TriggerInput"
+               Disabled="_uploading"
+               Color="Color.Primary">
+        @(_uploading ? "Đang tải..." : Label)
+    </MudButton>
+</div>
+
+@code {
+    [Parameter] public string Label { get; set; } = "Tải ảnh";
+    [Parameter] public string AcceptedTypes { get; set; } = "image/png,image/jpeg,image/svg+xml";
+    [Parameter] public string? CurrentPath { get; set; }
+    [Parameter] public EventCallback<string> OnUploaded { get; set; }
+
+    private bool _uploading = false;
+    private readonly string _inputId = $"img-{Guid.NewGuid():N}";
+
+    private static readonly HashSet<string> AllowedExtensions = [".jpg", ".jpeg", ".png", ".svg"];
+
+    private async Task TriggerInput()
+        => await JS.InvokeVoidAsync("eval", $"document.getElementById('{_inputId}').click()");
+
+    private async Task HandleFile(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file.Size > 15 * 1024 * 1024)
+        {
+            Snackbar.Add("File tối đa 15MB", Severity.Warning);
+            return;
+        }
+
+        var ext = Path.GetExtension(file.Name).ToLowerInvariant();
+        if (!AllowedExtensions.Contains(ext))
+        {
+            Snackbar.Add("Chỉ chấp nhận PNG, JPEG, SVG", Severity.Warning);
+            return;
+        }
+
+        _uploading = true;
+        StateHasChanged();
+        try
+        {
+            var uploadsDir = Path.Combine(Env.WebRootPath, "uploads");
+            Directory.CreateDirectory(uploadsDir);
+
+            var newFileName = $"{Guid.NewGuid():N}{ext}";
+            var filePath = Path.Combine(uploadsDir, newFileName);
+
+            await using var stream = new FileStream(filePath, FileMode.Create);
+            await file.OpenReadStream(maxAllowedSize: 15 * 1024 * 1024).CopyToAsync(stream);
+
+            var relativePath = $"/uploads/{newFileName}";
+            CurrentPath = relativePath;
+            await OnUploaded.InvokeAsync(relativePath);
+            Snackbar.Add("Tải ảnh thành công!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Lỗi: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _uploading = false;
+            StateHasChanged();
+        }
+    }
+}

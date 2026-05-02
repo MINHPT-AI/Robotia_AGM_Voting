@@ -1,0 +1,63 @@
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudTextField @bind-Value="_name" Label="Tên mẫu" Required="true"
+                      MaxLength="200" />
+
+        <MudSelect T="string" @bind-Value="_language" Label="Ngôn ngữ"
+                   Required="true" Class="mt-3">
+            <MudSelectItem Value="@("VN")">Tiếng Việt</MudSelectItem>
+            <MudSelectItem Value="@("EN")">English</MudSelectItem>
+            <MudSelectItem Value="@("DUAL")">Song ngữ</MudSelectItem>
+        </MudSelect>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Huỷ</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   OnClick="Submit" Disabled="_processing">
+            Lưu
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public Guid TemplateId { get; set; }
+    [Parameter] public string CurrentName { get; set; } = "";
+    [Parameter] public string CurrentLanguage { get; set; } = "VN";
+
+    private string _name = "";
+    private string _language = "VN";
+    private bool _processing;
+
+    protected override void OnParametersSet()
+    {
+        _name = CurrentName;
+        _language = CurrentLanguage;
+    }
+
+    private async Task Submit()
+    {
+        if (string.IsNullOrWhiteSpace(_name)) return;
+
+        _processing = true;
+        try
+        {
+            await Mediator.Send(new UpdateTemplateNameCommand(TemplateId, _name, _language));
+            Snackbar.Add("Đã cập nhật tên mẫu", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Lỗi: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

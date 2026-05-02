@@ -1,0 +1,850 @@
+@page "/meetings/{MeetingId:guid}/proxies"
+@attribute [Authorize(Roles = "admin,operator")]
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@inject IDialogService DialogService
+@inject IJSRuntime JS
+
+<PageTitle>Quản lý Ủy quyền — MMS</PageTitle>
+
+@* ── Topbar ── *@
+<MudPaper Elevation="2" Class="pa-3 mb-4" Style="background:linear-gradient(135deg,#1275BC 0%,#0D47A1 100%);color:white;">
+    <div class="d-flex justify-space-between align-center">
+        <div class="d-flex align-center gap-3">
+            <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                           OnClick="@(() => Nav.NavigateTo($"/meetings"))"
+                           Style="color:white;" />
+            <MudText Typo="Typo.h6" Style="font-weight:700">📋 Quản lý Ủy quyền</MudText>
+        </div>
+        <div class="d-flex gap-6 align-center">
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.FileUpload"
+                       Style="color:white;border-color:rgba(255,255,255,0.5);"
+                       OnClick="OpenImportDialog" Size="Size.Small">
+                📥 Import UQ từ Excel
+            </MudButton>
+            <MudDivider Vertical="true" FlexItem="true" Style="border-color:rgba(255,255,255,0.3);" />
+            <div class="text-center">
+                <MudText Typo="Typo.caption" Style="opacity:0.8">CĐ đã ủy quyền</MudText>
+                <MudText Typo="Typo.h5" Style="font-weight:700">@_topbar.TotalShareholdersWithProxy</MudText>
+            </div>
+            <MudDivider Vertical="true" FlexItem="true" Style="border-color:rgba(255,255,255,0.3);" />
+            <div class="text-center">
+                <MudText Typo="Typo.caption" Style="opacity:0.8">Tổng CP ủy quyền</MudText>
+                <MudText Typo="Typo.h5" Style="font-weight:700">@_topbar.TotalProxiedShares.ToString("N0")</MudText>
+            </div>
+            <MudDivider Vertical="true" FlexItem="true" Style="border-color:rgba(255,255,255,0.3);" />
+            <div class="text-center">
+                <MudText Typo="Typo.caption" Style="opacity:0.8">Đang chờ duyệt</MudText>
+                <MudBadge Content="@_topbar.PendingCount" Color="Color.Warning" Overlap="true">
+                    <MudText Typo="Typo.h5" Style="font-weight:700">@_topbar.PendingCount</MudText>
+                </MudBadge>
+            </div>
+        </div>
+    </div>
+</MudPaper>
+
+@* ── Main 2-column layout ── *@
+<MudGrid>
+    @* ── Cột trái: Tra cứu + Form ── *@
+    <MudItem xs="12" md="5">
+        @* Tra cứu CĐ *@
+        <MudCard Elevation="2" Class="mb-3">
+            <MudCardContent>
+                <MudAutocomplete T="ShareholderSearchItem" Label="Tra cứu cổ đông (Tên, Mã CĐ, CCCD)"
+                                 SearchFunc="SearchShareholders"
+                                 ToStringFunc="@(s => s == null ? "" : $"{s.FullName} — {s.IdNumber}")"
+                                 ValueChanged="OnShareholderSelected"
+                                 Variant="Variant.Outlined"
+                                 AdornmentIcon="@Icons.Material.Filled.Search"
+                                 Adornment="Adornment.Start"
+                                 ResetValueOnEmptyText="true"
+                                 DebounceInterval="300" />
+            </MudCardContent>
+        </MudCard>
+
+        @* Panel trạng thái CĐ *@
+        @if (_selectedStatus is not null)
+        {
+            <MudCard Elevation="2" Class="mb-3"
+                     Style="border-left:4px solid #1275BC;">
+                <MudCardContent>
+                    <MudText Typo="Typo.subtitle1" Style="font-weight:700;color:#1275BC;">
+                        @_selectedStatus.FullName
+                    </MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        CCCD: @_selectedStatus.IdNumber
+                    </MudText>
+                    <MudDivider Class="my-2" />
+                    <MudGrid>
+                        <MudItem xs="4">
+                            <MudText Typo="Typo.caption">CP sở hữu</MudText>
+                            <MudText Typo="Typo.subtitle2" Style="font-weight:700">
+                                @_selectedStatus.TotalShares.ToString("N0")
+                            </MudText>
+                        </MudItem>
+                        <MudItem xs="4">
+                            <MudText Typo="Typo.caption">Đã ủy quyền</MudText>
+                            <MudText Typo="Typo.subtitle2" Style="font-weight:700;color:#e65100;">
+                                @_selectedStatus.SharesAlreadyProxied.ToString("N0")
+                            </MudText>
+                        </MudItem>
+                        <MudItem xs="4">
+                            <MudText Typo="Typo.caption">Khả dụng</MudText>
+                            <MudText Typo="Typo.subtitle2" Style="font-weight:700;color:#2e7d32;">
+                                @_selectedStatus.AvailableShares.ToString("N0")
+                            </MudText>
+                        </MudItem>
+                    </MudGrid>
+                    @if (_selectedStatus.IsReceivingProxy)
+                    {
+                        <MudAlert Severity="Severity.Info" Class="mt-2" Dense="true">
+                            Đang nhận ủy quyền: @_selectedStatus.ReceivedProxyShares.ToString("N0") CP
+                            từ @_selectedStatus.IncomingProxies.Count CĐ
+                        </MudAlert>
+                    }
+                </MudCardContent>
+            </MudCard>
+
+            @* Form tạo ủy quyền *@
+            @if (_selectedStatus.AvailableShares > 0)
+            {
+                <MudCard Elevation="2" Class="mb-3">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.subtitle1" Style="font-weight:600">
+                                ✍️ Tạo ủy quyền mới
+                            </MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudSelect T="ProxyScope" Value="_proxyScope" ValueChanged="OnProxyScopeChanged"
+                                   Label="Phạm vi" Variant="Variant.Outlined">
+                            <MudSelectItem Value="ProxyScope.Full">Toàn phần (toàn bộ CP khả dụng)</MudSelectItem>
+                            <MudSelectItem Value="ProxyScope.Partial">Một phần</MudSelectItem>
+                        </MudSelect>
+
+                        @if (_proxyScope == ProxyScope.Full)
+                        {
+                            <MudTextField Value="@_selectedStatus.AvailableShares.ToString("N0")" Label="Số cổ phần ủy quyền"
+                                          Variant="Variant.Outlined" Class="mt-3"
+                                          ReadOnly="true"
+                                          HelperText="Toàn phần: tự động ủy quyền toàn bộ CP khả dụng"
+                                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Lock" />
+                        }
+                        else
+                        {
+                            <MudNumericField @bind-Value="_proxyShares" Label="Số cổ phần ủy quyền *"
+                                             Variant="Variant.Outlined" Format="N0" Class="mt-3"
+                                             Min="1" Max="@(_selectedStatus.AvailableShares - 1)"
+                                             HelperText="@($"Nhập từ 1 đến {(_selectedStatus.AvailableShares - 1):N0} CP")" />
+                        }
+
+                        <MudSelect @bind-Value="_proxyType" Label="Loại ủy quyền" Class="mt-3"
+                                   Variant="Variant.Outlined">
+                            <MudSelectItem Value="ProxyType.PreMeeting">Trước cuộc họp</MudSelectItem>
+                            <MudSelectItem Value="ProxyType.OnSite">Tại chỗ</MudSelectItem>
+                        </MudSelect>
+
+                        <MudDivider Class="my-3" />
+                        <MudText Typo="Typo.subtitle2" Style="font-weight:600" Class="mb-2">
+                            Người nhận ủy quyền
+                        </MudText>
+
+                        <MudSwitch @bind-Value="_isExternalGrantee" Label="Người nhận ngoài VSDC"
+                                   Color="Color.Primary" />
+
+                        @if (!_isExternalGrantee)
+                        {
+                            <MudAutocomplete T="ShareholderSearchItem"
+                                             Label="Chọn CĐ nhận UQ (trong VSDC)"
+                                             SearchFunc="SearchShareholders"
+                                             ToStringFunc="@(s => s == null ? "" : $"{s.FullName} — {s.IdNumber}")"
+                                             @bind-Value="_selectedGrantee"
+                                             Variant="Variant.Outlined" Class="mt-2" />
+                        }
+                        else
+                        {
+                            <MudTextField @bind-Value="_granteeName" Label="Họ tên *"
+                                          Variant="Variant.Outlined" Class="mt-2" />
+                            <MudTextField @bind-Value="_granteeIdNumber" Label="Số CMND/CCCD *"
+                                          Variant="Variant.Outlined" Class="mt-2" />
+                            <MudTextField @bind-Value="_granteePhone" Label="Số điện thoại (khuyến nghị)"
+                                          Variant="Variant.Outlined" Class="mt-2" />
+                            <MudTextField @bind-Value="_granteeOrg" Label="Tổ chức"
+                                          Variant="Variant.Outlined" Class="mt-2" />
+                        }
+
+                        <MudDatePicker @bind-Date="_proxyDate" Label="Ngày ủy quyền"
+                                       Variant="Variant.Outlined" Class="mt-3"
+                                       DateFormat="dd/MM/yyyy" />
+
+                        <MudTextField @bind-Value="_proxyDetail" Label="Ghi chú" Lines="2"
+                                      Variant="Variant.Outlined" Class="mt-3" />
+                    </MudCardContent>
+                    <MudCardActions>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   OnClick="CreateProxy" Disabled="_saving"
+                                   FullWidth="true" StartIcon="@Icons.Material.Filled.Save">
+                            @(_saving ? "Đang lưu..." : "Tạo ủy quyền")
+                        </MudButton>
+                    </MudCardActions>
+                </MudCard>
+            }
+        }
+    </MudItem>
+
+    @* ── Cột phải: Danh sách UQ của CĐ đang chọn ── *@
+    <MudItem xs="12" md="7">
+        @if (_selectedStatus is not null)
+        {
+            @* Outgoing *@
+            <MudCard Elevation="2" Class="mb-3">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.subtitle1" Style="font-weight:600">
+                            📤 Ủy quyền đi (@_selectedStatus.OutgoingProxies.Count)
+                        </MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    @if (_selectedStatus.OutgoingProxies.Count == 0)
+                    {
+                        <MudText Color="Color.Secondary">Chưa có ủy quyền nào.</MudText>
+                    }
+                    else
+                    {
+                        <MudSimpleTable Dense="true" Hover="true">
+                            <thead>
+                                <tr>
+                                    <th>Người nhận</th>
+                                    <th style="text-align:right">CP</th>
+                                    <th>Phạm vi</th>
+                                    <th>Trạng thái</th>
+                                    <th>Ngày</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var p in _selectedStatus.OutgoingProxies)
+                                {
+                                    <tr>
+                                        <td>@p.GranteeName</td>
+                                        <td style="text-align:right;font-weight:600">@p.Shares.ToString("N0")</td>
+                                        <td>@p.Scope</td>
+                                        <td>
+                                            <MudChip T="string" Size="Size.Small"
+                                                     Color="@(p.Status == ProxyStatus.Confirmed ? Color.Success : Color.Warning)">
+                                                @p.Status
+                                            </MudChip>
+                                        </td>
+                                        <td>@(p.ProxyDate?.ToString("dd/MM/yy") ?? "—")</td>
+                                        <td>
+                                            @if (p.Status == ProxyStatus.Pending)
+                                            {
+                                                <MudIconButton Icon="@Icons.Material.Filled.Check"
+                                                               Size="Size.Small" Color="Color.Success"
+                                                               OnClick="@(() => ConfirmProxy(p))"
+                                                               Title="Duyệt ủy quyền" />
+                                            }
+                                            <MudIconButton Icon="@Icons.Material.Filled.Cancel"
+                                                           Size="Size.Small" Color="Color.Error"
+                                                           OnClick="@(() => CancelProxy(p))"
+                                                           Title="Hủy ủy quyền" />
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+                    }
+                </MudCardContent>
+            </MudCard>
+
+            @* Incoming *@
+            @if (_selectedStatus.IncomingProxies.Count > 0)
+            {
+                <MudCard Elevation="2" Class="mb-3" Style="border-left:4px solid #2e7d32;">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.subtitle1" Style="font-weight:600;color:#2e7d32;">
+                                📥 Nhận ủy quyền (@_selectedStatus.IncomingProxies.Count)
+                            </MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudSimpleTable Dense="true" Hover="true">
+                            <thead>
+                                <tr>
+                                    <th>Từ CĐ</th>
+                                    <th style="text-align:right">CP</th>
+                                    <th>Phạm vi</th>
+                                    <th>Trạng thái</th>
+                                    <th>Ngày</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var p in _selectedStatus.IncomingProxies)
+                                {
+                                    <tr>
+                                        <td>@p.GrantorName</td>
+                                        <td style="text-align:right;font-weight:600">@p.Shares.ToString("N0")</td>
+                                        <td>@p.Scope</td>
+                                        <td>
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Success">
+                                                @p.Status
+                                            </MudChip>
+                                        </td>
+                                        <td>@(p.ProxyDate?.ToString("dd/MM/yy") ?? "—")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+                    </MudCardContent>
+                </MudCard>
+            }
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Normal" Icon="@Icons.Material.Filled.Info" Class="mt-4">
+                Hãy tra cứu và chọn một cổ đông ở bên trái để bắt đầu.
+            </MudAlert>
+        }
+
+        @* ── Panel: Tổng hợp tất cả ủy quyền ── *@
+        <MudExpansionPanels Class="mt-3">
+            <MudExpansionPanel Text="📋 Tổng hợp tất cả ủy quyền" IsInitiallyExpanded="false">
+                @if (_allProxies.Count == 0)
+                {
+                    <MudText Color="Color.Secondary">Chưa có ủy quyền nào trong cuộc họp.</MudText>
+                }
+                else
+                {
+                    <MudDataGrid T="ProxyListItemDto" Items="_allProxies"
+                                 Dense="true" Hover="true" Striped="true"
+                                 FixedHeader="true" Height="400px">
+                        <Columns>
+                            <PropertyColumn Property="x => x.GrantorName" Title="Người UQ" />
+                            <PropertyColumn Property="x => x.GranteeName" Title="Người nhận" />
+                            <PropertyColumn Property="x => x.Shares" Title="CP" Format="N0" />
+                            <TemplateColumn Title="Trạng thái">
+                                <CellTemplate>
+                                    <MudChip T="string" Size="Size.Small"
+                                             Color="@GetStatusColor(context.Item.Status)">
+                                        @context.Item.Status
+                                    </MudChip>
+                                </CellTemplate>
+                            </TemplateColumn>
+                            <TemplateColumn Title="Ngày">
+                                <CellTemplate>
+                                    @(context.Item.ProxyDate?.ToString("dd/MM/yy") ?? "—")
+                                </CellTemplate>
+                            </TemplateColumn>
+                            <TemplateColumn Title="">
+                                <CellTemplate>
+                                    @if (context.Item.Status == ProxyStatus.Pending)
+                                    {
+                                        <MudIconButton Icon="@Icons.Material.Filled.Check"
+                                                       Size="Size.Small" Color="Color.Success"
+                                                       OnClick="@(() => ConfirmProxy(context.Item))"
+                                                       Title="Duyệt ủy quyền" />
+                                    }
+                                    <MudIconButton Icon="@Icons.Material.Filled.Cancel"
+                                                   Size="Size.Small" Color="Color.Error"
+                                                   OnClick="@(() => CancelProxy(context.Item))"
+                                                   Title="Hủy ủy quyền" />
+                                </CellTemplate>
+                            </TemplateColumn>
+                        </Columns>
+                    </MudDataGrid>
+                }
+            </MudExpansionPanel>
+        </MudExpansionPanels>
+
+        @* ── Panel: Tra cứu & DS Người ủy quyền (CĐ đi UQ) ── *@
+        <MudExpansionPanels Class="mt-3">
+            <MudExpansionPanel Text="📤 Tra cứu & DS Người ủy quyền" IsInitiallyExpanded="false"
+                               IsExpandedChanged="OnGrantorPanelExpandedChanged">
+                <MudTextField @bind-Value="_grantorSearchText"
+                              Label="Tìm người ủy quyền (Tên, CCCD)"
+                              Variant="Variant.Outlined" Class="mb-3"
+                              Adornment="Adornment.End"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              OnAdornmentClick="SearchGrantors"
+                              OnKeyUp="OnGrantorSearchKeyUp"
+                              Immediate="false" />
+
+                @if (_grantorGroups.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info" Dense="true">
+                        @(_grantorSearchText is { Length: > 0 }
+                            ? "Không tìm thấy cổ đông ủy quyền phù hợp."
+                            : "Chưa có ủy quyền nào trong cuộc họp.")
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+                        Tìm thấy @_grantorGroups.Count CĐ ủy quyền · Tổng @_grantorGroups.Sum(g => g.SharesProxied).ToString("N0") CP
+                    </MudText>
+
+                    <MudExpansionPanels MultiExpansion="true">
+                        @foreach (var group in _grantorGroups)
+                        {
+                            <MudExpansionPanel Style="border-left: 3px solid #1275BC;">
+                                <TitleContent>
+                                    <div class="d-flex justify-space-between align-center" style="width:100%">
+                                        <div>
+                                            <MudText Typo="Typo.subtitle2" Style="font-weight:700">
+                                                👤 @group.GrantorName
+                                            </MudText>
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                                CCCD: @group.GrantorIdNumber
+                                            </MudText>
+                                        </div>
+                                        <div class="d-flex gap-3 align-center">
+                                            <div class="text-center">
+                                                <MudText Typo="Typo.caption">CP sở hữu</MudText>
+                                                <MudText Typo="Typo.body2" Style="font-weight:700">@group.TotalShares.ToString("N0")</MudText>
+                                            </div>
+                                            <div class="text-center">
+                                                <MudText Typo="Typo.caption" Style="color:#e65100">Đã UQ</MudText>
+                                                <MudText Typo="Typo.body2" Style="font-weight:700;color:#e65100">@group.SharesProxied.ToString("N0")</MudText>
+                                            </div>
+                                            <div class="text-center">
+                                                <MudText Typo="Typo.caption" Style="color:#2e7d32">Khả dụng</MudText>
+                                                <MudText Typo="Typo.body2" Style="font-weight:700;color:#2e7d32">@group.AvailableShares.ToString("N0")</MudText>
+                                            </div>
+                                            @if (group.PendingCount > 0)
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Color="Color.Warning">
+                                                    @group.PendingCount chờ duyệt
+                                                </MudChip>
+                                            }
+                                            @if (group.ConfirmedCount > 0)
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Color="Color.Success">
+                                                    @group.ConfirmedCount đã duyệt
+                                                </MudChip>
+                                            }
+                                        </div>
+                                    </div>
+                                </TitleContent>
+                                <ChildContent>
+                                    <MudSimpleTable Dense="true" Hover="true">
+                                        <thead>
+                                            <tr>
+                                                <th>Người nhận UQ</th>
+                                                <th>CCCD</th>
+                                                <th style="text-align:right">CP</th>
+                                                <th>Phạm vi</th>
+                                                <th>Trạng thái</th>
+                                                <th>Ngày</th>
+                                                <th></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var p in group.Proxies)
+                                            {
+                                                <tr>
+                                                    <td>@p.GranteeName</td>
+                                                    <td>@(p.GranteeIdNumber ?? "—")</td>
+                                                    <td style="text-align:right;font-weight:600">@p.Shares.ToString("N0")</td>
+                                                    <td>@p.Scope</td>
+                                                    <td>
+                                                        <MudChip T="string" Size="Size.Small"
+                                                                 Color="@GetStatusColor(p.Status)">
+                                                            @p.Status
+                                                        </MudChip>
+                                                    </td>
+                                                    <td>@(p.ProxyDate?.ToString("dd/MM/yy") ?? "—")</td>
+                                                    <td>
+                                                        @if (p.Status == ProxyStatus.Pending)
+                                                        {
+                                                            <MudIconButton Icon="@Icons.Material.Filled.Check"
+                                                                           Size="Size.Small" Color="Color.Success"
+                                                                           OnClick="@(() => ConfirmProxyAndRefreshGrantors(p))"
+                                                                           Title="Duyệt ủy quyền" />
+                                                        }
+                                                        <MudIconButton Icon="@Icons.Material.Filled.Cancel"
+                                                                       Size="Size.Small" Color="Color.Error"
+                                                                       OnClick="@(() => CancelProxyAndRefreshGrantors(p))"
+                                                                       Title="Hủy ủy quyền" />
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </MudSimpleTable>
+                                </ChildContent>
+                            </MudExpansionPanel>
+                        }
+                    </MudExpansionPanels>
+                }
+            </MudExpansionPanel>
+        </MudExpansionPanels>
+
+        @* ── Panel: Tra cứu & DS Người nhận ủy quyền ── *@
+        <MudExpansionPanels Class="mt-3">
+            <MudExpansionPanel Text="🔍 Tra cứu & DS Người nhận ủy quyền" IsInitiallyExpanded="false"
+                               IsExpandedChanged="OnGranteePanelExpandedChanged">
+                <MudTextField @bind-Value="_granteeSearchText"
+                              Label="Tìm người nhận UQ (Tên, CCCD)"
+                              Variant="Variant.Outlined" Class="mb-3"
+                              Adornment="Adornment.End"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              OnAdornmentClick="SearchGrantees"
+                              OnKeyUp="OnGranteeSearchKeyUp"
+                              Immediate="false" />
+
+                @if (_granteeGroups.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info" Dense="true">
+                        @(_granteeSearchText is { Length: > 0 }
+                            ? "Không tìm thấy người nhận ủy quyền phù hợp."
+                            : "Chưa có ủy quyền nào trong cuộc họp.")
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+                        Tìm thấy @_granteeGroups.Count người nhận · Tổng @_granteeGroups.Sum(g => g.TotalShares).ToString("N0") CP
+                    </MudText>
+
+                    <MudExpansionPanels MultiExpansion="true">
+                        @foreach (var group in _granteeGroups)
+                        {
+                            <MudExpansionPanel Style="border-left: 3px solid #2e7d32;">
+                                <TitleContent>
+                                    <div class="d-flex justify-space-between align-center" style="width:100%">
+                                        <div>
+                                            <MudText Typo="Typo.subtitle2" Style="font-weight:700">
+                                                👤 @group.GranteeName
+                                            </MudText>
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                                @(group.GranteeIdNumber ?? "Không có CCCD")
+                                            </MudText>
+                                        </div>
+                                        <div class="d-flex gap-3 align-center">
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Primary">
+                                                @group.TotalShares.ToString("N0") CP
+                                            </MudChip>
+                                            <MudText Typo="Typo.caption">
+                                                từ @group.GrantorCount CĐ
+                                            </MudText>
+                                            @if (group.PendingCount > 0)
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Color="Color.Warning">
+                                                    @group.PendingCount chờ duyệt
+                                                </MudChip>
+                                            }
+                                            @if (group.ConfirmedCount > 0)
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Color="Color.Success">
+                                                    @group.ConfirmedCount đã duyệt
+                                                </MudChip>
+                                            }
+                                        </div>
+                                    </div>
+                                </TitleContent>
+                                <ChildContent>
+                                    <MudSimpleTable Dense="true" Hover="true">
+                                        <thead>
+                                            <tr>
+                                                <th>Người ủy quyền</th>
+                                                <th>CCCD</th>
+                                                <th style="text-align:right">CP</th>
+                                                <th>Phạm vi</th>
+                                                <th>Trạng thái</th>
+                                                <th>Ngày</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var p in group.Proxies)
+                                            {
+                                                <tr>
+                                                    <td>@p.GrantorName</td>
+                                                    <td>@p.GrantorIdNumber</td>
+                                                    <td style="text-align:right;font-weight:600">@p.Shares.ToString("N0")</td>
+                                                    <td>@p.Scope</td>
+                                                    <td>
+                                                        <MudChip T="string" Size="Size.Small"
+                                                                 Color="@GetStatusColor(p.Status)">
+                                                            @p.Status
+                                                        </MudChip>
+                                                    </td>
+                                                    <td>@(p.ProxyDate?.ToString("dd/MM/yy") ?? "—")</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </MudSimpleTable>
+                                </ChildContent>
+                            </MudExpansionPanel>
+                        }
+                    </MudExpansionPanels>
+                }
+            </MudExpansionPanel>
+        </MudExpansionPanels>
+    </MudItem>
+</MudGrid>
+
+@code {
+    [Parameter] public Guid MeetingId { get; set; }
+
+    // Topbar
+    private ProxyTopbarDto _topbar = new(0, 0, 0);
+
+    // Panel trái
+    private ShareholderProxyStatusDto? _selectedStatus;
+    private ShareholderSearchItem? _selectedGrantee;
+
+    // Form fields
+    private long _proxyShares = 0;
+    private ProxyScope _proxyScope = ProxyScope.Full;
+    private ProxyType _proxyType = ProxyType.PreMeeting;
+    private bool _isExternalGrantee;
+    private string _granteeName = "";
+    private string _granteeIdNumber = "";
+    private string? _granteePhone;
+    private string? _granteeOrg;
+    private DateTime? _proxyDate = DateTime.Today;
+    private string? _proxyDetail;
+    private bool _saving;
+
+    // Drawer
+    private IList<ProxyListItemDto> _allProxies = [];
+
+    // Grantee lookup
+    private IList<GranteeGroupDto> _granteeGroups = [];
+    private string? _granteeSearchText;
+
+    // Grantor lookup
+    private IList<GrantorGroupDto> _grantorGroups = [];
+    private string? _grantorSearchText;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshTopbar();
+        await RefreshAllProxies();
+    }
+
+    private async Task RefreshTopbar()
+        => _topbar = await Mediator.Send(new GetProxyTopbarQuery(MeetingId));
+
+    private async Task RefreshAllProxies()
+        => _allProxies = await Mediator.Send(new GetAllProxiesQuery(MeetingId));
+
+    private async Task<IEnumerable<ShareholderSearchItem>> SearchShareholders(string? value, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 2)
+            return Enumerable.Empty<ShareholderSearchItem>();
+
+        var list = await Mediator.Send(new Mms.Application.Shareholders.Queries.SearchShareholdersQuery(MeetingId, value));
+        return list.Select(s => new ShareholderSearchItem(s.Id, s.FullName, s.IdNumber, s.VotingRights));
+    }
+
+    private async Task OnShareholderSelected(ShareholderSearchItem? item)
+    {
+        if (item is null) { _selectedStatus = null; return; }
+
+        _selectedStatus = await Mediator.Send(
+            new GetShareholderProxyStatusQuery(MeetingId, item.Id));
+
+        // Reset form
+        _proxyScope = ProxyScope.Full;
+        _proxyShares = _selectedStatus?.AvailableShares ?? 0;
+        _isExternalGrantee = false;
+        _selectedGrantee = null;
+    }
+
+    private void OnProxyScopeChanged(ProxyScope newScope)
+    {
+        _proxyScope = newScope;
+        if (newScope == ProxyScope.Full)
+        {
+            _proxyShares = _selectedStatus?.AvailableShares ?? 0;
+        }
+        else
+        {
+            // Partial: reset to 1 to force user input
+            _proxyShares = 1;
+        }
+    }
+
+    private async Task CreateProxy()
+    {
+        if (_selectedStatus is null) return;
+        _saving = true;
+
+        try
+        {
+            // When Full scope, always use all available shares
+            var sharesToProxy = _proxyScope == ProxyScope.Full
+                ? _selectedStatus.AvailableShares
+                : _proxyShares;
+
+            var cmd = new CreateProxyCommand(
+                MeetingId,
+                _selectedStatus.ShareholderId,
+                sharesToProxy,
+                _proxyScope,
+                _proxyType,
+                _proxyDate.HasValue ? DateOnly.FromDateTime(_proxyDate.Value) : null,
+                _proxyDetail,
+                _isExternalGrantee ? null : _selectedGrantee?.Id,
+                _isExternalGrantee ? _granteeName : null,
+                _isExternalGrantee ? _granteeIdNumber : null,
+                _isExternalGrantee ? _granteeOrg : null,
+                null, // GranteePosition
+                _isExternalGrantee ? _granteePhone : null,
+                "operator",
+                null
+            );
+
+            await Mediator.Send(cmd);
+            Snackbar.Add("Tạo ủy quyền thành công! ✅", Severity.Success);
+
+            // Refresh all
+            _selectedStatus = await Mediator.Send(
+                new GetShareholderProxyStatusQuery(MeetingId, _selectedStatus.ShareholderId));
+            _proxyShares = _selectedStatus?.AvailableShares ?? 0;
+            await RefreshTopbar();
+            await RefreshAllProxies();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Lỗi: {ex.Message}", Severity.Error);
+        }
+        finally { _saving = false; }
+    }
+
+    private async Task CancelProxy(ProxyListItemDto proxy)
+    {
+        try
+        {
+            await Mediator.Send(new CancelProxyCommand(proxy.Id, "Hủy bởi nhân viên", "operator", null));
+            Snackbar.Add("Đã hủy ủy quyền ✅", Severity.Success);
+
+            // Refresh
+            if (_selectedStatus is not null)
+                _selectedStatus = await Mediator.Send(
+                    new GetShareholderProxyStatusQuery(MeetingId, _selectedStatus.ShareholderId));
+            await RefreshTopbar();
+            await RefreshAllProxies();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Lỗi: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task ConfirmProxy(ProxyListItemDto proxy)
+    {
+        try
+        {
+            await Mediator.Send(new ConfirmProxyCommand(proxy.Id, "operator", null));
+            Snackbar.Add("Đã duyệt ủy quyền ✅", Severity.Success);
+
+            // Refresh
+            if (_selectedStatus is not null)
+                _selectedStatus = await Mediator.Send(
+                    new GetShareholderProxyStatusQuery(MeetingId, _selectedStatus.ShareholderId));
+            await RefreshTopbar();
+            await RefreshAllProxies();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Lỗi: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task SearchGrantees()
+    {
+        _granteeGroups = await Mediator.Send(
+            new GetGranteeGroupsQuery(MeetingId, _granteeSearchText));
+    }
+
+    private async Task OnGranteePanelExpandedChanged(bool expanded)
+    {
+        if (expanded)
+        {
+            await SearchGrantees();
+        }
+    }
+
+    private async Task OnGranteeSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchGrantees();
+        }
+    }
+
+    private async Task SearchGrantors()
+    {
+        _grantorGroups = await Mediator.Send(
+            new GetGrantorGroupsQuery(MeetingId, _grantorSearchText));
+    }
+
+    private async Task OnGrantorPanelExpandedChanged(bool expanded)
+    {
+        if (expanded)
+        {
+            await SearchGrantors();
+        }
+    }
+
+    private async Task OnGrantorSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchGrantors();
+        }
+    }
+
+    private async Task ConfirmProxyAndRefreshGrantors(ProxyListItemDto proxy)
+    {
+        await ConfirmProxy(proxy);
+        await SearchGrantors();
+    }
+
+    private async Task CancelProxyAndRefreshGrantors(ProxyListItemDto proxy)
+    {
+        await CancelProxy(proxy);
+        await SearchGrantors();
+    }
+
+    private static Color GetStatusColor(ProxyStatus status) => status switch
+    {
+        ProxyStatus.Confirmed => Color.Success,
+        ProxyStatus.Pending => Color.Warning,
+        ProxyStatus.Cancelled => Color.Error,
+        ProxyStatus.Superseded => Color.Default,
+        _ => Color.Default
+    };
+
+    public record ShareholderSearchItem(Guid Id, string FullName, string IdNumber, long VotingRights);
+
+    private async Task OpenImportDialog()
+    {
+        var parameters = new DialogParameters<ProxyImportDialog>
+        {
+            { x => x.MeetingId, MeetingId }
+        };
+        var options = new DialogOptions
+        {
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true,
+            CloseOnEscapeKey = true
+        };
+        var dialog = await DialogService.ShowAsync<ProxyImportDialog>("📥 Import ủy quyền từ Excel", parameters, options);
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            // Refresh all data after successful import
+            await RefreshTopbar();
+            await RefreshAllProxies();
+            if (_selectedStatus is not null)
+                _selectedStatus = await Mediator.Send(
+                    new GetShareholderProxyStatusQuery(MeetingId, _selectedStatus.ShareholderId));
+        }
+    }
+}

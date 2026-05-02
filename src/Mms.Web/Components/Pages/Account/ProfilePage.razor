@@ -1,0 +1,241 @@
+@page "/account/profile"
+@attribute [Authorize]
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthStateProvider
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<Mms.Infrastructure.Identity.ApplicationUser> UserManager
+
+<PageTitle>Hồ sơ của tôi — MMS</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4" Style="color:#1275BC;font-weight:700">
+    Hồ sơ của tôi
+</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudGrid>
+        @* ── Card 1: Thông tin cá nhân ── *@
+        <MudItem xs="12" md="6">
+            <MudCard Elevation="2">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.subtitle1" Style="font-weight:600">
+                            Thông tin cá nhân
+                        </MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <div class="d-flex align-center mb-4">
+                        <MudAvatar Color="Color.Primary" Size="Size.Large" Class="mr-3">
+                            @(_userName?.Length > 0 ? _userName[0].ToString().ToUpper() : "?")
+                        </MudAvatar>
+                        <div>
+                            <MudText Typo="Typo.body1" Style="font-weight:600">@_userName</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">@_userRole</MudText>
+                        </div>
+                    </div>
+
+                    @if (_editingProfile)
+                    {
+                        <MudTextField @bind-Value="_editFullName" Label="Họ tên *"
+                                      Variant="Variant.Outlined" Class="mb-3" />
+                        <MudTextField @bind-Value="_editEmail" Label="Email"
+                                      InputType="InputType.Email"
+                                      Variant="Variant.Outlined" Class="mb-3" />
+
+                        @if (!string.IsNullOrEmpty(_profileError))
+                        {
+                            <MudAlert Severity="Severity.Error" Class="mb-3">@_profileError</MudAlert>
+                        }
+
+                        <div class="d-flex gap-2">
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                       OnClick="SaveProfile" Disabled="_savingProfile">
+                                @(_savingProfile ? "Đang lưu..." : "Lưu")
+                            </MudButton>
+                            <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                                       OnClick="CancelEditProfile" Disabled="_savingProfile">
+                                Huỷ
+                            </MudButton>
+                        </div>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body1" Class="mb-2">
+                            <strong>Họ tên:</strong> @_fullName
+                        </MudText>
+                        <MudText Typo="Typo.body1" Class="mb-3">
+                            <strong>Email:</strong> @(_email ?? "Chưa cập nhật")
+                        </MudText>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Edit"
+                                   OnClick="StartEditProfile">
+                            Chỉnh sửa
+                        </MudButton>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        @* ── Card 2: Đổi mật khẩu ── *@
+        <MudItem xs="12" md="6">
+            <MudCard Elevation="2">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.subtitle1" Style="font-weight:600">
+                            Đổi mật khẩu
+                        </MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudTextField @bind-Value="_currentPassword" Label="Mật khẩu hiện tại *"
+                                  InputType="InputType.Password"
+                                  Variant="Variant.Outlined" Class="mb-3" />
+                    <MudTextField @bind-Value="_newPassword" Label="Mật khẩu mới *"
+                                  InputType="InputType.Password"
+                                  Variant="Variant.Outlined" Class="mb-3" />
+                    <MudTextField @bind-Value="_confirmNewPassword" Label="Xác nhận mật khẩu mới *"
+                                  InputType="InputType.Password"
+                                  Variant="Variant.Outlined" Class="mb-3" />
+
+                    @if (!string.IsNullOrEmpty(_passwordError))
+                    {
+                        <MudAlert Severity="Severity.Error" Class="mb-3">@_passwordError</MudAlert>
+                    }
+
+                    @if (_passwordSuccess)
+                    {
+                        <MudAlert Severity="Severity.Success" Class="mb-3">
+                            Đổi mật khẩu thành công!
+                        </MudAlert>
+                    }
+
+                    <MudButton Variant="Variant.Filled" Color="Color.Warning"
+                               StartIcon="@Icons.Material.Filled.Key"
+                               OnClick="ChangePassword" Disabled="_changingPassword">
+                        @(_changingPassword ? "Đang đổi..." : "Đổi mật khẩu")
+                    </MudButton>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private bool _loading = true;
+    private Guid _userId;
+    private string? _userName;
+    private string _fullName = string.Empty;
+    private string? _email;
+    private string? _userRole;
+
+    // Profile edit state
+    private bool _editingProfile;
+    private string _editFullName = string.Empty;
+    private string? _editEmail;
+    private bool _savingProfile;
+    private string? _profileError;
+
+    // Password change state
+    private string _currentPassword = string.Empty;
+    private string _newPassword = string.Empty;
+    private string _confirmNewPassword = string.Empty;
+    private bool _changingPassword;
+    private string? _passwordError;
+    private bool _passwordSuccess;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var claimsPrincipal = authState.User;
+
+        var user = await UserManager.GetUserAsync(claimsPrincipal);
+        if (user is not null)
+        {
+            _userId = user.Id;
+            _userName = user.UserName;
+            _fullName = user.FullName;
+            _email = user.Email;
+
+            var roles = await UserManager.GetRolesAsync(user);
+            _userRole = roles.FirstOrDefault() ?? "—";
+        }
+
+        _loading = false;
+    }
+
+    private void StartEditProfile()
+    {
+        _editFullName = _fullName;
+        _editEmail = _email;
+        _profileError = null;
+        _editingProfile = true;
+    }
+
+    private void CancelEditProfile()
+    {
+        _editingProfile = false;
+        _profileError = null;
+    }
+
+    private async Task SaveProfile()
+    {
+        _profileError = null;
+        _savingProfile = true;
+        try
+        {
+            await Mediator.Send(new UpdateProfileCommand(_userId, _editFullName, _editEmail));
+            _fullName = _editFullName;
+            _email = _editEmail;
+            _editingProfile = false;
+            Snackbar.Add("Cập nhật thông tin thành công", Severity.Success);
+        }
+        catch (Mms.Application.Common.Exceptions.ValidationException ex)
+        {
+            _profileError = string.Join(" | ", ex.Errors.SelectMany(e => e.Value));
+        }
+        catch (Exception ex)
+        {
+            _profileError = ex.Message;
+        }
+        finally { _savingProfile = false; }
+    }
+
+    private async Task ChangePassword()
+    {
+        _passwordError = null;
+        _passwordSuccess = false;
+
+        if (_newPassword != _confirmNewPassword)
+        {
+            _passwordError = "Mật khẩu xác nhận không khớp";
+            return;
+        }
+
+        _changingPassword = true;
+        try
+        {
+            await Mediator.Send(new ChangeOwnPasswordCommand(
+                _userId, _currentPassword, _newPassword));
+            _passwordSuccess = true;
+            _currentPassword = string.Empty;
+            _newPassword = string.Empty;
+            _confirmNewPassword = string.Empty;
+            Snackbar.Add("Đổi mật khẩu thành công", Severity.Success);
+        }
+        catch (Mms.Application.Common.Exceptions.ValidationException ex)
+        {
+            _passwordError = string.Join(" | ", ex.Errors.SelectMany(e => e.Value));
+        }
+        catch (Exception ex)
+        {
+            _passwordError = ex.Message;
+        }
+        finally { _changingPassword = false; }
+    }
+}

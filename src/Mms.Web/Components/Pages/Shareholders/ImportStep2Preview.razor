@@ -1,0 +1,128 @@
+@using Mms.Application.Shareholders.Dtos
+@using Mms.Infrastructure.Parsing
+
+<MudPaper Elevation="2" Class="pa-6">
+    <MudText Typo="Typo.h6" Class="mb-3" Style="color:#1275BC;">Mapping cột VSDC → Hệ thống MMS</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+        Cấu trúc 16 cột cố định theo chuẩn VSDC. Tất cả mapping đều khóa — không thể thay đổi.
+    </MudText>
+
+    <MudSimpleTable Dense="true" Hover="true" Bordered="true"
+                    Style="max-width:800px;">
+        <thead>
+            <tr>
+                <th style="width:50px;">#</th>
+                <th>Tên cột VSDC</th>
+                <th>Trường hệ thống</th>
+                <th style="width:100px;">Yêu cầu</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var col in _columns)
+            {
+                <tr>
+                    <td>@col.Index</td>
+                    <td>@col.VsdcName</td>
+                    <td>
+                        <MudChip T="string" Size="Size.Small" Color="Color.Surface" Variant="Variant.Outlined">
+                            @col.SystemField
+                        </MudChip>
+                    </td>
+                    <td>
+                        @if (col.Required)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Error">BẮT BUỘC</MudChip>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </MudSimpleTable>
+
+    @* Preview data *@
+    @if (MappedRows != null && MappedRows.Count > 0)
+    {
+        <MudText Typo="Typo.h6" Class="mt-6 mb-3" Style="color:#1275BC;">
+            Xem trước dữ liệu (@MappedRows.Count dòng)
+        </MudText>
+
+        <MudSimpleTable Dense="true" Hover="true" Bordered="true" Style="font-size:0.85rem;">
+            <thead>
+                <tr>
+                    <th>STT</th><th>Họ và tên</th><th>Số ĐKSH</th><th>Quốc tịch</th>
+                    <th style="text-align:right;">CP Tổng</th><th style="text-align:right;">QBQ Tổng</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{
+                    var preview = MappedRows.Take(5).Concat(
+                        MappedRows.Count > 8 ? MappedRows.TakeLast(3) : Enumerable.Empty<ShareholderImportDto>()
+                    ).ToList();
+                }
+                @foreach (var r in MappedRows.Take(5))
+                {
+                    <tr>
+                        <td>@r.VsdcRow</td>
+                        <td>@r.FullName</td>
+                        <td><code>@r.IdNumber</code></td>
+                        <td>@r.Nationality</td>
+                        <td style="text-align:right;">@r.SharesTotal.ToString("N0")</td>
+                        <td style="text-align:right;">@r.VotingRights.ToString("N0")</td>
+                    </tr>
+                }
+                @if (MappedRows.Count > 8)
+                {
+                    <tr><td colspan="6" style="text-align:center;color:#888;">... @(MappedRows.Count - 8) dòng ẩn ...</td></tr>
+                    @foreach (var r in MappedRows.TakeLast(3))
+                    {
+                        <tr>
+                            <td>@r.VsdcRow</td>
+                            <td>@r.FullName</td>
+                            <td><code>@r.IdNumber</code></td>
+                            <td>@r.Nationality</td>
+                            <td style="text-align:right;">@r.SharesTotal.ToString("N0")</td>
+                            <td style="text-align:right;">@r.VotingRights.ToString("N0")</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </MudSimpleTable>
+    }
+
+    <div class="d-flex justify-end gap-2 mt-4">
+        <MudButton Variant="Variant.Outlined" Color="Color.Default" OnClick="OnBack">Quay lại</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   EndIcon="@Icons.Material.Filled.ArrowForward" OnClick="OnNext">
+            Tiếp tục kiểm tra
+        </MudButton>
+    </div>
+</MudPaper>
+
+@code {
+    [Parameter] public VsdcParseResult? ParseResult { get; set; }
+    [Parameter] public List<ShareholderImportDto>? MappedRows { get; set; }
+    [Parameter] public EventCallback OnNext { get; set; }
+    [Parameter] public EventCallback OnBack { get; set; }
+
+    private record ColumnInfo(int Index, string VsdcName, string SystemField, bool Required);
+
+    private readonly ColumnInfo[] _columns = new[]
+    {
+        new ColumnInfo(1,  "STT",                            "VsdcRow",            false),
+        new ColumnInfo(2,  "Họ và tên",                      "FullName",           true),
+        new ColumnInfo(3,  "Mã định danh NĐT (SID)",        "Sid",                false),
+        new ColumnInfo(4,  "Mã nhà đầu tư (Investor code)", "InvestorCode",       false),
+        new ColumnInfo(5,  "Số ĐKSH",                        "IdNumber",           true),
+        new ColumnInfo(6,  "Ngày cấp",                       "IdIssueDate",        false),
+        new ColumnInfo(7,  "Địa chỉ",                        "Address",            false),
+        new ColumnInfo(8,  "Email",                           "Email",              false),
+        new ColumnInfo(9,  "Điện thoại",                      "Phone",              false),
+        new ColumnInfo(10, "Quốc tịch",                       "Nationality",        true),
+        new ColumnInfo(11, "SL CK – Chưa lưu ký",           "SharesNonDeposit",   false),
+        new ColumnInfo(12, "SL CK – Lưu ký",                "SharesDeposit",      false),
+        new ColumnInfo(13, "SL CK – Tổng cộng",             "SharesTotal",        false),
+        new ColumnInfo(14, "SL Quyền – Chưa lưu ký",        "RightsNonDeposit",   false),
+        new ColumnInfo(15, "SL Quyền – Lưu ký",             "RightsDeposit",      false),
+        new ColumnInfo(16, "SL Quyền – Tổng cộng",          "VotingRights",       true),
+    };
+}

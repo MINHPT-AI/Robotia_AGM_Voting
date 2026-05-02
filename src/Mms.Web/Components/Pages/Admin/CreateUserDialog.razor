@@ -1,0 +1,89 @@
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Class="mr-2" />
+            Tạo tài khoản mới
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_userName" Label="Tên đăng nhập *"
+                      Variant="Variant.Outlined" Class="mb-3" />
+        <MudTextField @bind-Value="_fullName" Label="Họ tên *"
+                      Variant="Variant.Outlined" Class="mb-3" />
+        <MudTextField @bind-Value="_email" Label="Email"
+                      InputType="InputType.Email"
+                      Variant="Variant.Outlined" Class="mb-3" />
+        <MudTextField @bind-Value="_password" Label="Mật khẩu *"
+                      InputType="InputType.Password"
+                      Variant="Variant.Outlined" Class="mb-3" />
+        <MudTextField @bind-Value="_confirmPassword" Label="Xác nhận mật khẩu *"
+                      InputType="InputType.Password"
+                      Variant="Variant.Outlined" Class="mb-3" />
+        <MudSelect @bind-Value="_role" Label="Vai trò *"
+                   Variant="Variant.Outlined" Class="mb-3">
+            <MudSelectItem Value="@("admin")">admin</MudSelectItem>
+            <MudSelectItem Value="@("operator")">operator</MudSelectItem>
+            <MudSelectItem Value="@("viewer")">viewer</MudSelectItem>
+            <MudSelectItem Value="@("checkin")">checkin</MudSelectItem>
+        </MudSelect>
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-2">@_errorMessage</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_saving">Huỷ</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   OnClick="Submit" Disabled="_saving">
+            @(_saving ? "Đang tạo..." : "Tạo tài khoản")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    private string _userName = string.Empty;
+    private string _fullName = string.Empty;
+    private string? _email;
+    private string _password = string.Empty;
+    private string _confirmPassword = string.Empty;
+    private string _role = "operator";
+    private bool _saving;
+    private string? _errorMessage;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        _errorMessage = null;
+
+        if (_password != _confirmPassword)
+        {
+            _errorMessage = "Mật khẩu xác nhận không khớp";
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            await Mediator.Send(new CreateUserCommand(
+                _userName, _fullName, _email, _password, _role));
+            Snackbar.Add($"Đã tạo tài khoản {_userName}", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Mms.Application.Common.Exceptions.ValidationException ex)
+        {
+            _errorMessage = string.Join(" | ", ex.Errors.SelectMany(e => e.Value));
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally { _saving = false; }
+    }
+}

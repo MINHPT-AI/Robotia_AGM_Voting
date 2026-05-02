@@ -1,0 +1,101 @@
+@using Mms.Application.Meetings.Dtos
+
+<MudCard Elevation="1">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.subtitle1" Style="font-weight:600">Ứng viên bầu @Position</MudText>
+        </CardHeaderContent>
+        <CardHeaderActions>
+            <MudIconButton Icon="@Icons.Material.Filled.AddCircle"
+                           Color="Color.Primary" Size="Size.Small"
+                           OnClick="AddRow" Title="Thêm ứng viên" />
+        </CardHeaderActions>
+    </MudCardHeader>
+    <MudCardContent Class="pa-0">
+        @if (!Items.Any())
+        {
+            <MudText Class="pa-4" Color="Color.Secondary" Typo="Typo.body2">
+                Chưa có ứng viên nào. Bấm + để thêm.
+            </MudText>
+        }
+        else
+        {
+            <MudSimpleTable Dense="true" Striped="true" Style="width:100%">
+                <thead>
+                    <tr style="background:#f5f7f9">
+                        <th style="width:48px;padding:8px 12px;font-size:0.75rem;color:#666">STT</th>
+                        <th style="padding:8px 12px;font-size:0.75rem;color:#666">Họ và tên</th>
+                        <th style="padding:8px 12px;font-size:0.75rem;color:#666">Chức vụ hiện tại</th>
+                        <th style="width:80px;padding:8px 12px;font-size:0.75rem;color:#666">Năm sinh</th>
+                        <th style="width:60px"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var (item, index) in Items.Select((x, i) => (x, i)))
+                    {
+                        <tr>
+                            <td style="padding:4px 12px;color:#888;font-size:0.875rem">@(index + 1)</td>
+                            <td style="padding:2px 8px">
+                                <MudTextField T="string" Value="@item.FullName"
+                                              ValueChanged="@((string v) => UpdateField(item, fullName: v))"
+                                              Variant="Variant.Text" Dense="true" Margin="Margin.Dense"
+                                              Placeholder="Nhập họ tên" />
+                            </td>
+                            <td style="padding:2px 8px">
+                                <MudTextField T="string" Value="@item.CurrentPosition"
+                                              ValueChanged="@((string v) => UpdateField(item, currentPos: v))"
+                                              Variant="Variant.Text" Dense="true" Margin="Margin.Dense"
+                                              Placeholder="Chức vụ" />
+                            </td>
+                            <td style="padding:2px 8px">
+                                <MudNumericField Value="@item.BirthYear"
+                                                 ValueChanged="@((int? v) => UpdateField(item, birthYear: v))"
+                                                 Variant="Variant.Text" Dense="true" Margin="Margin.Dense"
+                                                 Placeholder="Năm" HideSpinButtons="true" />
+                            </td>
+                            <td style="padding:2px 8px;text-align:center">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                               Size="Size.Small" Color="Color.Error"
+                                               OnClick="() => RemoveRow(item)" />
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+        }
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter, EditorRequired] public string Position { get; set; } = string.Empty;
+    [Parameter] public List<CandidateDto> Items { get; set; } = [];
+    [Parameter] public EventCallback<List<CandidateDto>> ItemsChanged { get; set; }
+
+    private async Task AddRow()
+    {
+        Items = [.. Items, new CandidateDto(null, Items.Count + 1, string.Empty, Position, null, null, null)];
+        await ItemsChanged.InvokeAsync(Items);
+    }
+
+    private async Task UpdateField(CandidateDto item,
+        string? fullName = null, string? currentPos = null, int? birthYear = null)
+    {
+        var idx = Items.IndexOf(item);
+        if (idx < 0) return;
+        Items[idx] = item with
+        {
+            FullName = fullName ?? item.FullName,
+            CurrentPosition = currentPos ?? item.CurrentPosition,
+            BirthYear = birthYear ?? item.BirthYear,
+        };
+        await ItemsChanged.InvokeAsync(Items);
+    }
+
+    private async Task RemoveRow(CandidateDto item)
+    {
+        Items = Items.Where(x => x != item)
+            .Select((x, i) => x with { DisplayOrder = i + 1 })
+            .ToList();
+        await ItemsChanged.InvokeAsync(Items);
+    }
+}

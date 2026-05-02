@@ -1,0 +1,118 @@
+@page "/login"
+@layout EmptyLayout
+@using Mms.Infrastructure.Identity
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<ApplicationUser> SignIn
+@inject UserManager<ApplicationUser> UserMgr
+@inject NavigationManager Nav
+@inject ILogger<Login> Logger
+
+<PageTitle>Đăng nhập — MMS</PageTitle>
+
+<MudCard Style="width:400px">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.h5" Align="Align.Center"
+                     Style="color:#1a3a5c;font-weight:700">
+                HỆ THỐNG MMS
+            </MudText>
+            <MudText Typo="Typo.body2" Align="Align.Center" Class="mt-1"
+                     Color="Color.Secondary">
+                Quản lý Đại hội Cổ đông
+            </MudText>
+        </CardHeaderContent>
+    </MudCardHeader>
+
+    <MudCardContent>
+        @if (!string.IsNullOrEmpty(ErrorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4" Dense="true">
+                @ErrorMessage
+            </MudAlert>
+        }
+
+        @* EditForm with Enhance=false to force standard full-page POST *@
+        @* NO explicit <AntiforgeryToken/> — EditForm generates it automatically *@
+        <EditForm Model="Input" OnValidSubmit="HandleLogin" method="post"
+                  FormName="LoginForm" Enhance="false">
+            <DataAnnotationsValidator />
+
+            @* Pass name attribute so SSR form binding receives the typed value *@
+
+            <MudTextField @bind-Value="Input.Username"
+                          UserAttributes="@(new Dictionary<string, object> { { "name", "Input.Username" } })"
+                          Label="Tên đăng nhập"
+                          Variant="Variant.Outlined"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Person"
+                          Class="mb-4" For="@(() => Input.Username)" />
+
+            <MudTextField @bind-Value="Input.Password"
+                          UserAttributes="@(new Dictionary<string, object> { { "name", "Input.Password" } })"
+                          Label="Mật khẩu"
+                          Variant="Variant.Outlined"
+                          InputType="InputType.Password"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Lock"
+                          Class="mb-2" For="@(() => Input.Password)" />
+
+            <MudLink Href="/forgot-password" Class="d-block mb-4" Typo="Typo.body2">
+                Quên mật khẩu?
+            </MudLink>
+
+            <MudButton ButtonType="ButtonType.Submit"
+                       Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       FullWidth="true"
+                       Size="Size.Large">
+                ĐĂNG NHẬP
+            </MudButton>
+        </EditForm>
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [SupplyParameterFromForm(FormName = "LoginForm")]
+    private LoginInput Input { get; set; } = new();
+
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    private string? ReturnUrl { get; set; }
+
+    private string? ErrorMessage { get; set; }
+
+    private async Task HandleLogin()
+    {
+        var result = await SignIn.PasswordSignInAsync(
+            Input.Username, Input.Password,
+            isPersistent: false, lockoutOnFailure: true);
+
+        if (result.Succeeded)
+        {
+            Logger.LogInformation("User {Username} logged in", Input.Username);
+            var user = await UserMgr.FindByNameAsync(Input.Username);
+            if (user?.MustChangePassword == true)
+            {
+                Nav.NavigateTo("/change-password");
+                return;
+            }
+            Nav.NavigateTo(ReturnUrl ?? "/", forceLoad: true);
+        }
+        else if (result.IsLockedOut)
+        {
+            ErrorMessage = "Tài khoản bị khóa. Vui lòng thử lại sau 15 phút.";
+        }
+        else
+        {
+            ErrorMessage = "Tên đăng nhập hoặc mật khẩu không đúng.";
+        }
+    }
+
+    public class LoginInput
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Vui lòng nhập tên đăng nhập")]
+        public string Username { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Vui lòng nhập mật khẩu")]
+        public string Password { get; set; } = string.Empty;
+    }
+}

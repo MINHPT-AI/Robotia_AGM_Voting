@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//mnt/d/PROJECT/Robotia_AGM_Voting/**)",
+      "Bash(cmd.exe /c \"dir D:\\\\PROJECT\\\\Robotia_AGM_Voting\\\\src\\\\\" 2>/dev/null)",
+      "Bash(xargs grep *)",
+      "Bash(xargs cat *)"
+    ]
+  }
+}

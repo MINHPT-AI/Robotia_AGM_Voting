@@ -1,0 +1,129 @@
+@page "/meetings/{MeetingId:guid}/import"
+@attribute [Authorize(Roles = "admin,operator")]
+@inject IMediator Mediator
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+@using MediatR
+@using Mms.Application.Shareholders.Commands
+@using Mms.Application.Shareholders.Dtos
+@using Mms.Application.Shareholders.Queries
+@using Mms.Application.Meetings.Queries
+@using Mms.Application.Meetings.Dtos
+@using Mms.Infrastructure.Parsing
+
+<PageTitle>Import VSDC — MMS</PageTitle>
+
+<div class="d-flex align-center justify-space-between mb-4">
+    <div>
+        <MudText Typo="Typo.h5" Style="color:#1275BC;font-weight:700">Import Danh sách Cổ đông từ VSDC</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">
+            @if (_meeting != null) { <span>Cuộc họp: <strong>@_meeting.Title</strong> — Ngày ĐKCC: <strong>@_meeting.RecordDate.ToString("dd/MM/yyyy")</strong></span> }
+        </MudText>
+    </div>
+    <MudButton Variant="Variant.Outlined" Color="Color.Default"
+               StartIcon="@Icons.Material.Filled.ArrowBack"
+               Href="/meetings">Quay lại</MudButton>
+</div>
+
+@* Custom Stepper *@
+<MudPaper Elevation="0" Class="pa-4 mb-4" Style="background:#f2f4f6;border-radius:12px;">
+    <div class="d-flex justify-space-between align-center" style="max-width:600px;margin:0 auto;">
+        @for (int i = 0; i < _stepTitles.Length; i++)
+        {
+            var idx = i;
+            <div class="d-flex flex-column align-center" style="min-width:80px;">
+                <MudAvatar Size="Size.Small"
+                           Color="@(idx < _activeStep ? Color.Primary : idx == _activeStep ? Color.Primary : Color.Default)"
+                           Variant="@(idx <= _activeStep ? Variant.Filled : Variant.Outlined)">
+                    @if (idx < _activeStep) { <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" /> }
+                    else { @(idx + 1) }
+                </MudAvatar>
+                <MudText Typo="Typo.caption" Class="mt-1"
+                         Style="@(idx == _activeStep ? "font-weight:700;color:#1275BC;" : "")">
+                    @_stepTitles[idx]
+                </MudText>
+            </div>
+            @if (i < _stepTitles.Length - 1)
+            {
+                <MudDivider Style="flex:1;margin:0 8px;align-self:center;" />
+            }
+        }
+    </div>
+</MudPaper>
+
+@* Step content *@
+@switch (_activeStep)
+{
+    case 0:
+        <ImportStep1Upload Meeting="_meeting" OnFileLoaded="HandleFileLoaded" />
+        break;
+    case 1:
+        <ImportStep2Preview ParseResult="_parseResult" MappedRows="_mappedRows"
+                           OnNext="() => _activeStep = 2" OnBack="() => _activeStep = 0" />
+        break;
+    case 2:
+        <ImportStep3Validate MappedRows="_mappedRows" ValidationResult="_validation"
+                             Meeting="_meeting"
+                             OnImport="HandleImport" OnBack="() => _activeStep = 1" />
+        break;
+    case 3:
+        <ImportStep4Result Result="_importResult" MeetingId="MeetingId" />
+        break;
+}
+
+@code {
+    [Parameter] public Guid MeetingId { get; set; }
+
+    private readonly string[] _stepTitles = { "Tải lên", "Xem trước", "Kiểm tra", "Kết quả" };
+    private int _activeStep = 0;
+    private MeetingDetailDto? _meeting;
+    private VsdcParseResult? _parseResult;
+    private List<ShareholderImportDto>? _mappedRows;
+    private VsdcValidationResult? _validation;
+    private ImportResultDto? _importResult;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _meeting = await Mediator.Send(new GetMeetingByIdQuery(MeetingId));
+        if (_meeting == null)
+        {
+            Snackbar.Add("Không tìm thấy cuộc họp", Severity.Error);
+            Nav.NavigateTo("/meetings");
+        }
+    }
+
+    private async Task HandleFileLoaded(
+        (VsdcParseResult Parsed, List<ShareholderImportDto> Mapped) data)
+    {
+        _parseResult = data.Parsed;
+        _mappedRows = data.Mapped;
+        _activeStep = 1;
+
+        // Pre-compute validation
+        var existing = await Mediator.Send(new GetExistingShareholderIdsQuery(MeetingId));
+        _validation = new VsdcValidator().Validate(
+            _mappedRows, existing, _meeting?.TotalVotingShares ?? 0);
+
+        StateHasChanged();
+    }
+
+    private async Task HandleImport()
+    {
+        if (_mappedRows == null || _mappedRows.Count == 0) return;
+
+        try
+        {
+            _importResult = await Mediator.Send(
+                new ImportShareholdersCommand(MeetingId, _mappedRows));
+            _activeStep = 3;
+            Snackbar.Add(
+                $"Import thành công {_importResult.TotalRead} cổ đông trong {_importResult.ElapsedTime.TotalSeconds:F1}s",
+                Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Lỗi import: {ex.Message}", Severity.Error);
+        }
+    }
+}

@@ -1,0 +1,129 @@
+name: CI — Build & Test
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Job 1: Build + Unit + Integration ──
+  build-and-test:
+    name: Build & Unit/Integration Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: mms_test
+          POSTGRES_USER: mms_test
+          POSTGRES_PASSWORD: test_password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Unit Tests
+        run: |
+          dotnet test tests/Mms.UnitTests/ --no-build --configuration Release \
+            --logger "trx;LogFileName=unit-results.trx" \
+            --collect:"XPlat Code Coverage"
+
+      - name: Integration Tests
+        run: |
+          dotnet test tests/Mms.IntegrationTests/ --no-build --configuration Release \
+            --logger "trx;LogFileName=integration-results.trx" \
+            --collect:"XPlat Code Coverage"
+        env:
+          JWT_SECRET: "ci-test-secret-minimum-32-characters-long"
+          SEED_ADMIN_PASSWORD: "CiTest@2025!"
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: "**/*.trx"
+
+  # ── Job 2: Docker Build Smoke Test ──
+  docker-smoke:
+    name: Docker Build Smoke Test
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build -f docker/blazor-app.Dockerfile -t mms-app:smoke . \
+            --build-arg BUILDKIT_INLINE_CACHE=1
+
+  # ── Job 3: E2E Playwright (manual trigger only) ──
+  e2e:
+    name: E2E Playwright Tests
+    runs-on: ubuntu-latest
+    needs: docker-smoke
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Start docker-compose stack
+        run: |
+          docker compose -f docker/docker-compose.yml up -d --build
+          # Wait for app to be ready (max 60s)
+          for i in $(seq 1 30); do
+            if curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/login | grep -q "200"; then
+              echo "✅ App is ready"
+              break
+            fi
+            echo "⏳ Waiting for app... (attempt $i/30)"
+            sleep 2
+          done
+
+      - name: Install Playwright browsers
+        run: |
+          dotnet build tests/Mms.E2ETests/ --configuration Release
+          pwsh tests/Mms.E2ETests/bin/Release/net8.0/playwright.ps1 install chromium
+
+      - name: Run E2E tests
+        run: |
+          dotnet test tests/Mms.E2ETests/ --no-build --configuration Release \
+            --logger "trx;LogFileName=e2e-results.trx"
+        env:
+          MMS_E2E_URL: "http://localhost:8080"
+
+      - name: Upload E2E results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-results
+          path: "**/*.trx"
+
+      - name: Teardown
+        if: always()
+        run: docker compose -f docker/docker-compose.yml down -v

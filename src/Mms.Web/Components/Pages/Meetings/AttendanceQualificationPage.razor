@@ -1,0 +1,270 @@
+@page "/meetings/{MeetingId:guid}/attendance"
+@attribute [Authorize(Roles = "admin,operator")]
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<PageTitle>Thẩm tra Tư cách — MMS</PageTitle>
+
+@* ── Header + Nút chốt ── *@
+<div class="d-flex justify-space-between align-center mb-4">
+    <MudText Typo="Typo.h5" Style="color:#1275BC;font-weight:700">
+        📊 Thẩm tra Tư cách Cổ đông
+    </MudText>
+    <div class="d-flex gap-2">
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                   OnClick="@(() => TakeSnapshot("Opening"))"
+                   StartIcon="@Icons.Material.Filled.CameraAlt"
+                   Disabled="_snapping">
+            Chốt lần 1 (Khai mạc)
+        </MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Success"
+                   OnClick="@(() => TakeSnapshot("PreVote"))"
+                   StartIcon="@Icons.Material.Filled.Lock"
+                   Disabled="_snapping">
+            Chốt lần 2 (Trước BQ)
+        </MudButton>
+    </div>
+</div>
+
+@* ── Panel số liệu 3 tầng ── *@
+<MudPaper Elevation="2" Class="pa-4 mb-4"
+          Style="background:linear-gradient(135deg,#F5F5F5,#FAFAFA);border-radius:12px;">
+    <MudGrid>
+        <MudItem xs="3">
+            <div class="text-center">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">TỔNG CĐ VSDC</MudText>
+                <MudText Typo="Typo.h4" Style="font-weight:800">@_topbar.TotalVsdcShareholders</MudText>
+            </div>
+        </MudItem>
+        <MudItem xs="3">
+            <div class="text-center">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">CĐ DỰ HỌP</MudText>
+                <MudText Typo="Typo.h4" Style="font-weight:800;color:#2E7D32">@_topbar.AttendingShareholders</MudText>
+            </div>
+        </MudItem>
+        <MudItem xs="3">
+            <div class="text-center">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">CP DỰ HỌP</MudText>
+                <MudText Typo="Typo.h4" Style="font-weight:800;color:#1565C0">@_topbar.AttendingShares.ToString("N0")</MudText>
+            </div>
+        </MudItem>
+        <MudItem xs="3">
+            <div class="text-center">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">TỶ LỆ</MudText>
+                <MudText Typo="Typo.h4" Style="@($"font-weight:800;color:{(_topbar.IsQuorumReached ? "#2E7D32" : "#E65100")}")">                    @_topbar.QuorumPercentage.ToString("F2")%
+                </MudText>
+                @if (_topbar.IsQuorumReached)
+                {
+                    <MudChip T="string" Color="Color.Success" Size="Size.Small">✅ ĐỦ ĐIỀU KIỆN</MudChip>
+                }
+            </div>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@* ── Tabs: DS1 / DS2 (UQ) / DS3 (Vắng mặt) ── *@
+<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true">
+    @* DS1 — Cổ đông dự họp *@
+    <MudTabPanel Text="@($"DS1 — THAM DỰ ({_attendanceList.Count})")" Icon="@Icons.Material.Filled.People">
+        <MudDataGrid T="AttendanceListItemDto" Items="_attendanceList"
+                     Dense="true" Hover="true" Striped="true"
+                     FixedHeader="true" Height="calc(100vh - 480px)"
+                     RowClick="OnDs1RowClick">
+            <Columns>
+                <PropertyColumn Property="x => x.VsdcRow" Title="STT" />
+                <PropertyColumn Property="x => x.ShareholderName" Title="Họ tên" />
+                <PropertyColumn Property="x => x.IdNumber" Title="CCCD/ĐKSH" />
+                <TemplateColumn Title="Hình thức">
+                    <CellTemplate>
+                        @{
+                            var mode = context.Item.AttendanceMode;
+                            var color = mode == "Trực tiếp" ? Color.Success
+                                      : mode == "Ủy quyền" ? Color.Info
+                                      : Color.Warning;
+                        }
+                        <MudChip T="string" Size="Size.Small" Color="@color">
+                            @mode
+                        </MudChip>
+                    </CellTemplate>
+                </TemplateColumn>
+                <PropertyColumn Property="x => x.DirectShares" Title="CP trực tiếp" Format="N0" />
+                <TemplateColumn Title="CP ủy quyền">
+                    <CellTemplate>
+                        @if (context.Item.ProxyShares > 0)
+                        {
+                            <MudLink Typo="Typo.body2" Color="Color.Primary"
+                                     OnClick="() => ShowProxyDetail(context.Item)"
+                                     Style="cursor:pointer;font-weight:600;">
+                                @context.Item.ProxyShares.ToString("N0")
+                            </MudLink>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.body2">0</MudText>
+                        }
+                    </CellTemplate>
+                </TemplateColumn>
+                <PropertyColumn Property="x => x.TotalShares" Title="TỔNG" Format="N0" />
+            </Columns>
+        </MudDataGrid>
+    </MudTabPanel>
+
+    @* DS3 — Vắng mặt *@
+    <MudTabPanel Text="@($"DS3 — VẮNG MẶT ({_absentList.Count})")" Icon="@Icons.Material.Filled.PersonOff">
+        <MudDataGrid T="AbsentShareholderDto" Items="_absentList"
+                     Dense="true" Hover="true" Striped="true"
+                     FixedHeader="true" Height="calc(100vh - 480px)">
+            <Columns>
+                <PropertyColumn Property="x => x.FullName" Title="Họ tên" />
+                <PropertyColumn Property="x => x.IdNumber" Title="CCCD" />
+                <PropertyColumn Property="x => x.VotingRights" Title="CP BQ" Format="N0" />
+                <TemplateColumn Title="Đã ủy quyền">
+                    <CellTemplate>
+                        @if (context.Item.HasProxied)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Info">
+                                UQ → @context.Item.ProxiedToName
+                            </MudChip>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Không</MudText>
+                        }
+                    </CellTemplate>
+                </TemplateColumn>
+            </Columns>
+        </MudDataGrid>
+    </MudTabPanel>
+
+    @* Snapshots *@
+    <MudTabPanel Text="LỊCH SỬ CHỐT" Icon="@Icons.Material.Filled.History">
+        @if (_snapshots.Count == 0)
+        {
+            <MudText Color="Color.Secondary" Class="pa-4">Chưa có snapshot nào.</MudText>
+        }
+        else
+        {
+            <MudSimpleTable Dense="true" Hover="true" Class="pa-4">
+                <thead>
+                    <tr><th>Loại</th><th>Thời gian</th><th>CĐ dự họp</th><th>CP dự họp</th><th>Tỷ lệ</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var s in _snapshots)
+                    {
+                        <tr>
+                            <td><MudChip T="string" Size="Size.Small" Color="Color.Primary">@s.SnapshotType</MudChip></td>
+                            <td>@s.SnapshotAt.ToString("HH:mm:ss dd/MM")</td>
+                            <td style="font-weight:600">@s.TotalAttendingShareholders</td>
+                            <td style="font-weight:600">@s.TotalAttendingShares.ToString("N0")</td>
+                            <td style="font-weight:700;color:#1565C0">@s.PercentageQuorum.ToString("F2")%</td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+        }
+    </MudTabPanel>
+</MudTabs>
+
+@* Dialog chi tiết ủy quyền *@
+<MudDialog @bind-Visible="_showProxyDetail" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true }">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.SwapHoriz" Class="mr-3 mb-n1"/>
+            Chi tiết ủy quyền — @_selectedItem?.ShareholderName
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_selectedItem?.ProxyDelegations?.Count > 0)
+        {
+            <MudSimpleTable Dense="true" Hover="true">
+                <thead>
+                    <tr><th>Người nhận UQ</th><th>CCCD</th><th>Số CP</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var d in _selectedItem.ProxyDelegations)
+                    {
+                        <tr>
+                            <td style="font-weight:600">@d.GranteeName</td>
+                            <td>@(d.GranteeIdNumber ?? "—")</td>
+                            <td style="font-weight:700">@d.Shares.ToString("N0")</td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+                Tổng CP ủy quyền: <b>@_selectedItem.ProxyDelegations.Sum(d => d.Shares).ToString("N0")</b>
+            </MudText>
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Info">Cổ đông này không có ủy quyền.</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => _showProxyDetail = false" Color="Color.Primary">Đóng</MudButton>
+    </DialogActions>
+</MudDialog>
+
+
+@code {
+    [Parameter] public Guid MeetingId { get; set; }
+
+    private CheckinTopbarDto _topbar = new(0, 0, 0, 0, 0, false, 0, 0);
+    private IList<Mms.Application.Checkin.Queries.AttendanceListItemDto> _attendanceList = [];
+    private IList<Mms.Application.Checkin.Queries.AbsentShareholderDto> _absentList = [];
+    private IList<Domain.Entities.AttendanceSnapshot> _snapshots = [];
+    private bool _snapping;
+
+    // Proxy delegation dialog
+    private bool _showProxyDetail;
+    private AttendanceListItemDto? _selectedItem;
+
+    private void OnDs1RowClick(DataGridRowClickEventArgs<AttendanceListItemDto> args)
+    {
+        if (args.Item.ProxyDelegations.Count > 0)
+            ShowProxyDetail(args.Item);
+    }
+
+    private void ShowProxyDetail(AttendanceListItemDto item)
+    {
+        _selectedItem = item;
+        _showProxyDetail = true;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAll();
+    }
+
+    private async Task RefreshAll()
+    {
+        _topbar = await Mediator.Send(new GetCheckinTopbarQuery(MeetingId));
+        _attendanceList = await Mediator.Send(new GetAttendanceListQuery(MeetingId));
+        _absentList = await Mediator.Send(new GetAbsentShareholdersQuery(MeetingId));
+        _snapshots = await LoadSnapshots();
+    }
+
+    private async Task<IList<Domain.Entities.AttendanceSnapshot>> LoadSnapshots()
+    {
+        // Sử dụng MmsDbContext trực tiếp qua Mediator không hợp lý,
+        // nên tạm thời trả list rỗng — sẽ thêm query riêng
+        return [];
+    }
+
+    private async Task TakeSnapshot(string snapshotType)
+    {
+        _snapping = true;
+        try
+        {
+            await Mediator.Send(new CreateAttendanceSnapshotCommand(
+                MeetingId, snapshotType, Guid.Empty, "operator"));
+            Snackbar.Add($"✅ Đã chốt snapshot: {snapshotType}", Severity.Success);
+            await RefreshAll();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Lỗi: {ex.Message}", Severity.Error);
+        }
+        finally { _snapping = false; }
+    }
+}

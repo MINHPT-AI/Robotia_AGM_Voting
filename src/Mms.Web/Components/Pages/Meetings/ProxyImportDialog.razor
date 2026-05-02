@@ -1,0 +1,265 @@
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.FileUpload" Class="mr-2" />
+            Import ủy quyền từ Excel
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_step == ImportStep.Upload)
+        {
+            @* ── Step 1: Upload file ── *@
+            <MudAlert Severity="Severity.Info" Class="mb-3">
+                Tải lên file Excel có các cột: STT, Cổ đông ủy quyền, Số ĐKSH, Người nhận ủy quyền, Số ĐKSH, Số CP ủy quyền, SĐT Người nhận (không bắt buộc).
+            </MudAlert>
+
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mb-3"
+                       StartIcon="@Icons.Material.Filled.Download"
+                       OnClick="DownloadTemplate">
+                📄 Tải file mẫu
+            </MudButton>
+
+            <MudFileUpload T="IBrowserFile" Accept=".xlsx,.xls" FilesChanged="OnFileSelected" MaximumFileCount="1">
+                <ActivatorContent>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.CloudUpload"
+                               FullWidth="true" Size="Size.Large">
+                        Chọn file Excel (.xlsx)
+                    </MudButton>
+                </ActivatorContent>
+            </MudFileUpload>
+
+            @if (!string.IsNullOrEmpty(_fileName))
+            {
+                <MudAlert Severity="Severity.Success" Class="mt-2" Dense="true">
+                    📎 @_fileName
+                </MudAlert>
+            }
+
+            @if (_parseErrors.Count > 0)
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-2">
+                    <MudText Typo="Typo.subtitle2" Style="font-weight:600">Lỗi đọc file:</MudText>
+                    @foreach (var err in _parseErrors)
+                    {
+                        <MudText Typo="Typo.body2">• @err</MudText>
+                    }
+                </MudAlert>
+            }
+        }
+        else if (_step == ImportStep.Preview)
+        {
+            @* ── Step 2: Preview & Validate ── *@
+            <MudAlert Severity="@(_result!.ErrorCount > 0 ? Severity.Warning : Severity.Success)" Class="mb-3">
+                <div class="d-flex gap-4">
+                    <div>
+                        <MudText Typo="Typo.caption">Tổng</MudText>
+                        <MudText Typo="Typo.h6" Style="font-weight:700">@_result.TotalRows</MudText>
+                    </div>
+                    <div>
+                        <MudText Typo="Typo.caption" Style="color:#2e7d32">Hợp lệ</MudText>
+                        <MudText Typo="Typo.h6" Style="font-weight:700;color:#2e7d32">@_result.SuccessCount</MudText>
+                    </div>
+                    @if (_result.ErrorCount > 0)
+                    {
+                        <div>
+                            <MudText Typo="Typo.caption" Style="color:#d32f2f">Lỗi</MudText>
+                            <MudText Typo="Typo.h6" Style="font-weight:700;color:#d32f2f">@_result.ErrorCount</MudText>
+                        </div>
+                    }
+                </div>
+                @if (_result.ErrorCount > 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mt-2">
+                        ⚠️ Các dòng lỗi sẽ bị bỏ qua. Chỉ @_result.SuccessCount dòng hợp lệ sẽ được import.
+                    </MudText>
+                }
+            </MudAlert>
+
+            <MudSimpleTable Dense="true" Hover="true" Striped="true" Style="max-height:400px;overflow-y:auto;">
+                <thead>
+                    <tr>
+                        <th>STT</th>
+                        <th>CĐ ủy quyền</th>
+                        <th>Số ĐKSH</th>
+                        <th>Người nhận</th>
+                        <th>Số ĐKSH</th>
+                        <th style="text-align:right">CP UQ</th>
+                        <th style="text-align:right">CP khả dụng</th>
+                        <th>Kết quả</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _result.Rows)
+                    {
+                        <tr style="@(row.IsValid ? "" : "background:#fff3e0;")">
+                            <td>@row.Stt</td>
+                            <td>@row.GrantorName</td>
+                            <td>@row.GrantorIdNumber</td>
+                            <td>@row.GranteeName</td>
+                            <td>@row.GranteeIdNumber</td>
+                            <td style="text-align:right;font-weight:600">@row.Shares.ToString("N0")</td>
+                            <td style="text-align:right">@row.AvailableShares.ToString("N0")</td>
+                            <td>
+                                @if (row.IsValid)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Success">OK</MudChip>
+                                }
+                                else
+                                {
+                                    <MudTooltip Text="@row.ErrorMessage">
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Error">Lỗi</MudChip>
+                                    </MudTooltip>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+        }
+        else if (_step == ImportStep.Done)
+        {
+            @* ── Step 3: Done ── *@
+            <MudAlert Severity="Severity.Success" Class="mb-3">
+                <MudText Typo="Typo.h6" Style="font-weight:700">✅ Import hoàn tất!</MudText>
+                <MudText Typo="Typo.body1" Class="mt-1">
+                    Đã import thành công @_result!.SuccessCount/@_result.TotalRows ủy quyền vào hệ thống.
+                    @if (_result.ErrorCount > 0)
+                    {
+                        <span> (@_result.ErrorCount dòng bị bỏ qua do lỗi)</span>
+                    }
+                </MudText>
+            </MudAlert>
+        }
+
+        @if (_processing)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mt-2" />
+        }
+    </DialogContent>
+    <DialogActions>
+        @if (_step == ImportStep.Upload)
+        {
+            <MudButton OnClick="Cancel">Hủy</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       OnClick="ValidateAndPreview"
+                       Disabled="@(_parsedRows.Count == 0 || _processing)"
+                       StartIcon="@Icons.Material.Filled.Preview">
+                Kiểm tra & Xem trước
+            </MudButton>
+        }
+        else if (_step == ImportStep.Preview)
+        {
+            <MudButton OnClick="@(() => _step = ImportStep.Upload)">← Quay lại</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       OnClick="ConfirmImport"
+                       Disabled="@(_result!.SuccessCount == 0 || _processing)"
+                       StartIcon="@Icons.Material.Filled.CheckCircle">
+                Xác nhận Import @_result.SuccessCount dòng
+            </MudButton>
+        }
+        else
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">Đóng</MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public Guid MeetingId { get; set; }
+
+    private enum ImportStep { Upload, Preview, Done }
+    private ImportStep _step = ImportStep.Upload;
+    private bool _processing;
+    private string? _fileName;
+    private List<string> _parseErrors = [];
+    private List<ProxyImportRowDto> _parsedRows = [];
+    private ProxyImportResultDto? _result;
+
+    private async Task DownloadTemplate()
+    {
+        var bytes = Mms.Infrastructure.Parsing.ProxyImportTemplate.Generate();
+        await JS.InvokeVoidAsync("downloadFileFromBytes", "Mau_Import_Uy_Quyen.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bytes);
+    }
+
+    private async Task OnFileSelected(IBrowserFile file)
+    {
+        _parseErrors.Clear();
+        _parsedRows.Clear();
+        _fileName = file.Name;
+
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024); // 10MB max
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            ms.Position = 0;
+
+            var parser = new Mms.Infrastructure.Parsing.ProxyImportParser();
+            var parseResult = parser.Parse(ms);
+
+            _parseErrors = parseResult.Errors;
+            _parsedRows = parseResult.Rows.Select(r => new ProxyImportRowDto(
+                r.RowNumber, r.Stt, r.GrantorName, r.GrantorIdNumber,
+                r.GranteeName, r.GranteeIdNumber, r.Shares, r.GranteePhone))
+                .ToList();
+
+            if (_parsedRows.Count > 0)
+            {
+                Snackbar.Add($"Đã đọc {_parsedRows.Count} dòng từ file.", Severity.Info);
+            }
+        }
+        catch (Exception ex)
+        {
+            _parseErrors.Add($"Lỗi đọc file: {ex.Message}");
+        }
+    }
+
+    private async Task ValidateAndPreview()
+    {
+        _processing = true;
+        try
+        {
+            // Phase 1: Dry-run validation only (no DB changes)
+            var query = new ValidateProxiesImportQuery(MeetingId, _parsedRows);
+            _result = await Mediator.Send(query);
+            _step = ImportStep.Preview;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Lỗi: {ex.Message}", Severity.Error);
+        }
+        finally { _processing = false; }
+    }
+
+    private async Task ConfirmImport()
+    {
+        _processing = true;
+        try
+        {
+            // Phase 2: Actually save to DB (only valid rows will be imported)
+            var validRows = _parsedRows
+                .Where(r => _result!.Rows.Any(v => v.RowNumber == r.RowNumber && v.IsValid))
+                .ToList();
+
+            var cmd = new ImportProxiesCommand(MeetingId, validRows, "operator", null);
+            _result = await Mediator.Send(cmd);
+            _step = ImportStep.Done;
+            Snackbar.Add($"✅ Import thành công {_result.SuccessCount} ủy quyền!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Lỗi: {ex.Message}", Severity.Error);
+        }
+        finally { _processing = false; }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+    private void Submit() => MudDialog.Close(DialogResult.Ok(true));
+}

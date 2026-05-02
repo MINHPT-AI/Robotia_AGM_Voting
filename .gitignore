@@ -1,0 +1,18 @@
+# Visual Studio & .NET
+**/.env
+**/postgres_data/
+**/bin/
+**/obj/
+**/.vs/
+**/.idea/
+*.user
+*.userosscache
+*.sln.docstates
+*.suo
+
+# macOS
+.DS_Store
+
+# Logs
+logs/
+*.log

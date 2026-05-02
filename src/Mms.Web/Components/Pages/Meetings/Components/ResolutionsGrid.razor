@@ -1,0 +1,82 @@
+@using Mms.Application.Meetings.Dtos
+
+<MudCard Elevation="1">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.subtitle1" Style="font-weight:600">Tờ trình biểu quyết</MudText>
+        </CardHeaderContent>
+        <CardHeaderActions>
+            <MudIconButton Icon="@Icons.Material.Filled.AddCircle"
+                           Color="Color.Primary" Size="Size.Small"
+                           OnClick="AddRow" Title="Thêm tờ trình" />
+        </CardHeaderActions>
+    </MudCardHeader>
+    <MudCardContent Class="pa-0">
+        @if (!Items.Any())
+        {
+            <MudText Class="pa-4" Color="Color.Secondary" Typo="Typo.body2">
+                Chưa có tờ trình nào. Bấm + để thêm.
+            </MudText>
+        }
+        else
+        {
+            <MudSimpleTable Dense="true" Striped="true" Style="width:100%">
+                <thead>
+                    <tr style="background:#f5f7f9">
+                        <th style="width:48px;padding:8px 12px;font-size:0.75rem;color:#666">STT</th>
+                        <th style="padding:8px 12px;font-size:0.75rem;color:#666">Nội dung tờ trình</th>
+                        <th style="width:60px"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var (item, index) in Items.Select((x, i) => (x, i)))
+                    {
+                        <tr>
+                            <td style="padding:4px 12px;color:#888;font-size:0.875rem">@(index + 1)</td>
+                            <td style="padding:2px 8px">
+                                <MudTextField T="string" Value="@item.Title"
+                                              ValueChanged="@((string v) => UpdateTitle(item, v))"
+                                              Variant="Variant.Text" Dense="true" Margin="Margin.Dense"
+                                              Placeholder="Nhập nội dung tờ trình" />
+                            </td>
+                            <td style="padding:2px 8px;text-align:center">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                               Size="Size.Small" Color="Color.Error"
+                                               OnClick="() => RemoveRow(item)" />
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+        }
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter] public List<ResolutionDto> Items { get; set; } = [];
+    [Parameter] public EventCallback<List<ResolutionDto>> ItemsChanged { get; set; }
+
+    private async Task AddRow()
+    {
+        Items = [.. Items, new ResolutionDto(null, Items.Count + 1, string.Empty, null)];
+        await ItemsChanged.InvokeAsync(Items);
+    }
+
+    private async Task UpdateTitle(ResolutionDto item, string newTitle)
+    {
+        var idx = Items.IndexOf(item);
+        if (idx >= 0)
+        {
+            Items[idx] = item with { Title = newTitle };
+            await ItemsChanged.InvokeAsync(Items);
+        }
+    }
+
+    private async Task RemoveRow(ResolutionDto item)
+    {
+        Items = Items.Where(x => x != item)
+            .Select((x, i) => x with { DisplayOrder = i + 1 })
+            .ToList();
+        await ItemsChanged.InvokeAsync(Items);
+    }
+}

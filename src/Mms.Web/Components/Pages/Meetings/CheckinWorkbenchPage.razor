@@ -1,0 +1,544 @@
+@page "/meetings/{MeetingId:guid}/checkin"
+@attribute [Authorize(Roles = "admin,operator")]
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@implements IAsyncDisposable
+
+<PageTitle>Bàn làm việc Check-in — MMS</PageTitle>
+
+@* ── TOPBAR 3 dòng (Real-time via polling) ── *@
+<MudPaper Elevation="3" Class="pa-3 mb-4"
+          Style="background:linear-gradient(135deg,#0D47A1 0%,#1565C0 50%,#1E88E5 100%);color:white;border-radius:12px;">
+    @* Dòng 1 — Số cổ đông *@
+    <div class="d-flex gap-8 align-center flex-wrap">
+        <div>
+            <MudText Typo="Typo.overline" Style="opacity:0.7">SỐ CỔ ĐÔNG</MudText>
+            <div class="d-flex gap-4 align-baseline">
+                <div>
+                    <MudText Typo="Typo.caption" Style="opacity:0.6">DS VSDC</MudText>
+                    <MudText Typo="Typo.h5" Style="font-weight:800">@_topbar.TotalVsdcShareholders</MudText>
+                </div>
+                <div>
+                    <MudText Typo="Typo.caption" Style="opacity:0.6">Dự họp</MudText>
+                    <MudText Typo="Typo.h5" Style="font-weight:800;color:#69F0AE">@_topbar.AttendingShareholders</MudText>
+                </div>
+            </div>
+        </div>
+        <MudDivider Vertical="true" FlexItem="true" Style="border-color:rgba(255,255,255,0.3);height:50px;" />
+        @* Dòng 2 — Số CP biểu quyết *@
+        <div>
+            <MudText Typo="Typo.overline" Style="opacity:0.7">SỐ CP BIỂU QUYẾT</MudText>
+            <div class="d-flex gap-4 align-baseline">
+                <div>
+                    <MudText Typo="Typo.caption" Style="opacity:0.6">DS VSDC</MudText>
+                    <MudText Typo="Typo.h5" Style="font-weight:800">@_topbar.TotalVsdcShares.ToString("N0")</MudText>
+                </div>
+                <div>
+                    <MudText Typo="Typo.caption" Style="opacity:0.6">Dự họp</MudText>
+                    <MudText Typo="Typo.h5" Style="font-weight:800;color:#69F0AE">@_topbar.AttendingShares.ToString("N0")</MudText>
+                </div>
+            </div>
+        </div>
+        <MudDivider Vertical="true" FlexItem="true" Style="border-color:rgba(255,255,255,0.3);height:50px;" />
+        @* Tỷ lệ + Badge *@
+        <div class="text-center">
+            <MudText Typo="Typo.overline" Style="opacity:0.7">TỶ LỆ DỰ HỌP</MudText>
+            <MudText Typo="Typo.h4" Style="@($"font-weight:800;color:{(_topbar.IsQuorumReached ? "#69F0AE" : "#FFD54F")}")">
+                @_topbar.QuorumPercentage.ToString("F2")%
+            </MudText>
+        </div>
+        <div class="d-flex flex-column align-center justify-center">
+            @if (_topbar.IsQuorumReached)
+            {
+                <MudChip T="string" Color="Color.Success" Size="Size.Large"
+                         Style="font-weight:700;animation:pulse 2s infinite;" Class="ma-0">
+                    ✅ ĐỦ ĐIỀU KIỆN
+                </MudChip>
+            }
+            else
+            {
+                <MudChip T="string" Color="Color.Warning" Size="Size.Large" Class="ma-0">⏳ CHƯA ĐỦ</MudChip>
+            }
+            <MudButton Variant="Variant.Text" Color="Color.Inherit" Size="Size.Small"
+                       OnClick="() => _showReprintQueue = true" StartIcon="@Icons.Material.Filled.Print"
+                       Class="mt-1 px-2 py-0" Style="text-transform:none;opacity:0.9;min-width:auto;">
+                Hàng đợi in lại (@_reprintQueue.Count)
+            </MudButton>
+        </div>
+    </div>
+    @* Dòng 3 — DS2 phụ *@
+    <MudDivider Class="my-2" Style="border-color:rgba(255,255,255,0.2);" />
+    <div class="d-flex gap-6">
+        <MudText Typo="Typo.caption" Style="opacity:0.8">
+            👤 Người trực tiếp: <b>@_topbar.PhysicalAttendees</b>
+        </MudText>
+        <MudText Typo="Typo.caption" Style="opacity:0.8">
+            🎫 Bộ phiếu phát ra: <b>@_topbar.TotalBallotsIssued</b>
+        </MudText>
+    </div>
+</MudPaper>
+
+@* ── MAIN 2-COLUMN ── *@
+<MudGrid>
+    @* ── CỘT TRÁI: Tra cứu + Tình huống + Form ── *@
+    <MudItem xs="12" md="5">
+        @* Input tra cứu *@
+        <MudCard Elevation="2" Class="mb-3">
+            <MudCardContent>
+                <MudAutocomplete T="CheckinSearchItem" Label="🔍 Quét QR / Nhập CCCD / Tên cổ đông"
+                                 SearchFunc="SearchShareholders"
+                                 ToStringFunc="@(s => s == null ? "" : s.SearchKey)"
+                                 ValueChanged="OnShareholderSelected"
+                                 @bind-Text="_searchTerm"
+                                 Variant="Variant.Outlined" Adornment="Adornment.End"
+                                 AdornmentIcon="@Icons.Material.Filled.Search"
+                                 OnKeyUp="OnSearchKeyUp"
+                                 Immediate="true" AutoFocus="true"
+                                 ResetValueOnEmptyText="true"
+                                 DebounceInterval="300"
+                                 Style="font-size:1.1rem;font-weight:600;">
+                    <ItemTemplate Context="item">
+                        <MudText Typo="Typo.body1"><b>@item.FullName</b></MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">CCCD/Mã: @item.IdNumber</MudText>
+                    </ItemTemplate>
+                </MudAutocomplete>
+            </MudCardContent>
+        </MudCard>
+
+        @* Banner tình huống *@
+        @if (_situation is not null)
+        {
+            <MudCard Elevation="2" Class="mb-3" Style="@GetSituationBorderStyle()">
+                <MudCardContent>
+                    @* Thẻ CĐ *@
+                    <div class="d-flex justify-space-between align-start">
+                        <div>
+                            <MudText Typo="Typo.h6" Style="font-weight:700;color:#1275BC;">
+                                @_situation.ShareholderName
+                            </MudText>
+                            <div class="d-flex gap-3 align-center mt-1">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    CCCD: <b>@_situation.ShareholderIdNumber</b>
+                                </MudText>
+                                @if (!string.IsNullOrEmpty(_situation.VsdcRow))
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Surface" Class="ma-0">
+                                        STT VSDC: <b>@_situation.VsdcRow</b>
+                                    </MudChip>
+                                }
+                            </div>
+                        </div>
+                        <MudChip T="string" Size="Size.Medium"
+                                 Color="@GetSituationChipColor()"
+                                 Style="font-weight:700;">
+                            @_situation.SituationCode — @_situation.SituationLabel
+                        </MudChip>
+                    </div>
+
+                    @* Warning banner *@
+                    @if (!string.IsNullOrEmpty(_situation.WarningMessage))
+                    {
+                        <MudAlert Severity="@(_situation.HasDuplicateDksh ? Severity.Warning : Severity.Info)"
+                                  Class="mt-3" Dense="true">
+                            @_situation.WarningMessage
+                        </MudAlert>
+                    }
+
+                    @* MERGE banner *@
+                    @if (_situation.HasDuplicateDksh && _situation.DuplicateInfo is not null)
+                    {
+                        <MudPaper Class="pa-3 mt-2" Style="background:#FFF3E0;border:2px solid #FF9800;border-radius:8px;">
+                            <MudText Typo="Typo.subtitle2" Style="font-weight:700;color:#E65100;">
+                                ⚠ PHÁT HIỆN 2 TÀI KHOẢN CÙNG SỐ CCCD
+                            </MudText>
+                            <div class="d-flex gap-4 mt-2">
+                                <div style="flex:1;">
+                                    <MudText Typo="Typo.caption">TK 1: @_situation.DuplicateInfo.Name1</MudText>
+                                    <MudText Typo="Typo.caption">Ngày cấp: @(_situation.DuplicateInfo.IdIssueDate1?.ToString("dd/MM/yyyy") ?? "—")</MudText>
+                                    <MudText Typo="Typo.caption" Style="font-weight:600">@_situation.DuplicateInfo.Shares1.ToString("N0") CP</MudText>
+                                </div>
+                                <div style="flex:1;">
+                                    <MudText Typo="Typo.caption">TK 2: @_situation.DuplicateInfo.Name2</MudText>
+                                    <MudText Typo="Typo.caption">Ngày cấp: @(_situation.DuplicateInfo.IdIssueDate2?.ToString("dd/MM/yyyy") ?? "—")</MudText>
+                                    <MudText Typo="Typo.caption" Style="font-weight:600">@_situation.DuplicateInfo.Shares2.ToString("N0") CP</MudText>
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2 mt-2">
+                                <MudButton Variant="Variant.Filled" Color="Color.Warning" Size="Size.Small"
+                                           OnClick="HandleMergeAtCounter">
+                                    Có — tiến hành MERGE ngay
+                                </MudButton>
+                                <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                           OnClick="HandleCheckinIndependent">
+                                    Không — check-in độc lập
+                                </MudButton>
+                            </div>
+                        </MudPaper>
+                    }
+
+                    <MudDivider Class="my-2" />
+
+                    @* Thông tin CP *@
+                    <MudGrid>
+                        <MudItem xs="4">
+                            <MudText Typo="Typo.caption">CP trực tiếp</MudText>
+                            <MudText Typo="Typo.subtitle2" Style="font-weight:700">
+                                @_situation.DirectShares.ToString("N0")
+                            </MudText>
+                        </MudItem>
+                        <MudItem xs="4">
+                            <MudText Typo="Typo.caption">CP nhận UQ</MudText>
+                            <MudText Typo="Typo.subtitle2" Style="font-weight:700;color:#1565C0;">
+                                @_situation.ProxyReceivedShares.ToString("N0")
+                            </MudText>
+                        </MudItem>
+                        <MudItem xs="4">
+                            <MudText Typo="Typo.caption">TỔNG ĐẠI DIỆN</MudText>
+                            <MudText Typo="Typo.h6" Style="font-weight:800;color:#2E7D32;">
+                                @_situation.TotalRepresentingShares.ToString("N0")
+                            </MudText>
+                        </MudItem>
+                    </MudGrid>
+
+                    @* Proxy details *@
+                    @if (_situation.IncomingProxies.Count > 0)
+                    {
+                        <MudText Typo="Typo.caption" Class="mt-2" Style="font-weight:600">
+                            Nhận UQ từ @_situation.IncomingProxies.Count CĐ:
+                        </MudText>
+                        @foreach (var p in _situation.IncomingProxies)
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                • @p.GrantorName — @p.Shares.ToString("N0") CP (@p.Status)
+                            </MudText>
+                        }
+                    }
+                </MudCardContent>
+            </MudCard>
+
+            @* Form xác nhận check-in *@
+            @if (_situation is not null && !_situation.AlreadyCheckedIn
+                 && _situation.SituationCode != "FULLY_PROXIED"
+                 && !_situation.HasDuplicateDksh)
+            {
+                <MudCard Elevation="2" Class="mb-3">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.subtitle1" Style="font-weight:600">
+                                ✅ Xác nhận Check-in
+                            </MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudTextField @bind-Value="_phoneInput" Label="Số điện thoại"
+                                      Variant="Variant.Outlined"
+                                      HelperText="@(_situation.PhoneSource?.ToString() ?? "Nhập thủ công")" />
+
+                        <MudSwitch @bind-Value="_giftReceived" Label="Đã nhận quà"
+                                   Color="Color.Success" Class="mt-2"  />
+                    </MudCardContent>
+                    <MudCardActions>
+                        <MudButton Variant="Variant.Filled" Color="Color.Success"
+                                   FullWidth="true" Size="Size.Large"
+                                   OnClick="ConfirmCheckin" Disabled="_processing"
+                                   StartIcon="@Icons.Material.Filled.HowToReg"
+                                   Style="font-weight:700;font-size:1.1rem;">
+                            @(_processing ? "Đang xử lý..." : "XÁC NHẬN CHECK-IN & IN PHIẾU")
+                        </MudButton>
+                    </MudCardActions>
+                </MudCard>
+            }
+        }
+    </MudItem>
+
+    @* ── CỘT PHẢI: Kết quả + Phiếu ── *@
+    <MudItem xs="12" md="7">
+        @if (_checkinResult is not null)
+        {
+            <MudAlert Severity="Severity.Success" Class="mb-3"
+                      Icon="@Icons.Material.Filled.CheckCircle">
+                <b>Check-in thành công!</b> Mã: <b>@_checkinResult.AttendCode</b>
+                — @_checkinResult.AttendanceType
+                — @_checkinResult.TotalShares.ToString("N0") CP
+                — @_checkinResult.BallotsIssued.Count phiếu
+            </MudAlert>
+
+            @* Tabs phiếu đã phát *@
+            <MudCard Elevation="2">
+                <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" Class="pa-2">
+                    @foreach (var ballot in _checkinResult.BallotsIssued)
+                    {
+                        <MudTabPanel Text="@GetBallotTypeLabel(ballot.BallotType)"
+                                     Icon="@GetBallotIcon(ballot.BallotType)">
+                            <MudCardContent>
+                                <MudSimpleTable Dense="true">
+                                    <tbody>
+                                        <tr><td style="width:40%">Mã phiếu</td><td style="font-weight:700">@ballot.AttendCode</td></tr>
+                                        <tr><td>Loại</td><td>@GetBallotTypeLabel(ballot.BallotType)</td></tr>
+                                        <tr><td>CP đại diện</td><td style="font-weight:700">@ballot.VotingShares.ToString("N0")</td></tr>
+                                        <tr><td>Trạng thái</td><td>
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Info">@ballot.Status</MudChip>
+                                        </td></tr>
+                                    </tbody>
+                                </MudSimpleTable>
+                            </MudCardContent>
+                        </MudTabPanel>
+                    }
+                </MudTabs>
+            </MudCard>
+        }
+        else if (_situation is not null)
+        {
+            @* Preview Thẻ biểu quyết / Phiếu bầu *@
+            <MudCard Elevation="2" Class="pa-6 text-center" Style="border: 1px solid #E0E0E0; border-radius: 12px; background: #f9fafb;">
+                <MudIcon Icon="@Icons.Material.Filled.Badge" Size="Size.Large" Color="Color.Primary" Class="mb-3" />
+                <MudText Typo="Typo.h6" Style="font-weight:700; color: #1565C0;">THẺ BIỂU QUYẾT</MudText>
+                <MudText Typo="Typo.subtitle1" Class="mb-4">ĐẠI HỘI ĐỒNG CỔ ĐÔNG THƯỜNG NIÊN</MudText>
+                
+                <MudDivider Class="my-4" />
+                
+                <div class="d-flex flex-column align-start mx-auto" style="max-width: 400px; text-align: left;">
+                    <MudText Typo="Typo.body1" Class="mb-2">Tên cổ đông: <b>@_situation.ShareholderName</b></MudText>
+                    <MudText Typo="Typo.body1" Class="mb-2">Mã ĐKSH / CCCD: <b>@_situation.ShareholderIdNumber</b></MudText>
+                    <MudText Typo="Typo.body1" Class="mb-2">STT VSDC: <b>@(_situation.VsdcRow ?? "—")</b></MudText>
+                    <MudText Typo="Typo.body1" Class="mt-2">Số lượng cổ phần có quyền biểu quyết:</MudText>
+                    <MudText Typo="Typo.h4" Style="font-weight:800; color: #2E7D32;" Class="text-center mt-2 w-100">
+                        @_situation.TotalRepresentingShares.ToString("N0")
+                    </MudText>
+                </div>
+            </MudCard>
+        }
+        else
+        {
+            <MudCard Elevation="1" Class="pa-6 text-center" Style="border: 2px dashed #E0E0E0; border-radius: 12px; opacity: 0.5;">
+                <MudIcon Icon="@Icons.Material.Filled.Preview" Size="Size.Large" Color="Color.Secondary" Class="mb-3" />
+                <MudText Typo="Typo.subtitle1" Color="Color.Secondary">
+                    Bản xem trước Thẻ biểu quyết sẽ hiển thị ở đây
+                </MudText>
+            </MudCard>
+        }
+    </MudItem>
+</MudGrid>
+
+<MudDialog @bind-Visible="_showReprintQueue" Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true }">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Print" Class="mr-3 mb-n1"/>
+            Hàng đợi in lại (@_reprintQueue.Count)
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_reprintQueue.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info">Không có phiếu cần in lại.</MudAlert>
+        }
+        else
+        {
+            <MudSimpleTable Dense="true" Hover="true">
+                <thead>
+                    <tr><th>CĐ</th><th>Loại phiếu</th><th>Mã</th><th>Lý do</th><th>Thời gian</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in _reprintQueue)
+                    {
+                        <tr>
+                            <td>@item.ShareholderName</td>
+                            <td>@GetBallotTypeLabel(item.BallotType)</td>
+                            <td>@item.AttendCode</td>
+                            <td>@item.Reason</td>
+                            <td>@item.InvalidatedAt.ToString("HH:mm")</td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => _showReprintQueue = false" Color="Color.Primary">Đóng</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public Guid MeetingId { get; set; }
+
+    // Topbar
+    private CheckinTopbarDto _topbar = new(0, 0, 0, 0, 0, false, 0, 0);
+    private Timer? _topbarTimer;
+
+    // Search
+    public record CheckinSearchItem(Guid Id, string FullName, string IdNumber)
+    {
+        public string SearchKey => IdNumber;
+    }
+
+    private string _searchTerm = "";
+    private CheckinSituationDto? _situation;
+
+    private async Task<IEnumerable<CheckinSearchItem>> SearchShareholders(string? value, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 2)
+            return Enumerable.Empty<CheckinSearchItem>();
+
+        var list = await Mediator.Send(new Mms.Application.Shareholders.Queries.SearchShareholdersQuery(MeetingId, value));
+        return list.Select(s => new CheckinSearchItem(s.Id, s.FullName, s.IdNumber));
+    }
+
+    private async Task OnShareholderSelected(CheckinSearchItem? item)
+    {
+        if (item is null) return;
+        _searchTerm = item.SearchKey;
+        await PerformSearch();
+    }
+
+    // Form
+    private string? _phoneInput;
+    private bool _giftReceived;
+    private bool _processing;
+
+    // Result
+    private CheckinResultDto? _checkinResult;
+
+    // Reprint
+    private IList<ReprintQueueItemDto> _reprintQueue = [];
+    private bool _showReprintQueue;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshTopbar();
+        await RefreshReprintQueue();
+
+        // Poll topbar every 5 seconds
+        _topbarTimer = new Timer(async _ =>
+        {
+            await RefreshTopbar();
+            await InvokeAsync(StateHasChanged);
+        }, null, 5000, 5000);
+    }
+
+    private async Task RefreshTopbar()
+    {
+        try { _topbar = await Mediator.Send(new GetCheckinTopbarQuery(MeetingId)); }
+        catch { /* ignore polling errors */ }
+    }
+
+    private async Task RefreshReprintQueue()
+        => _reprintQueue = await Mediator.Send(new GetReprintQueueQuery(MeetingId));
+
+    private async Task OnSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key != "Enter") return;
+        await PerformSearch();
+    }
+
+    private async Task PerformSearch()
+    {
+        if (string.IsNullOrWhiteSpace(_searchTerm)) return;
+
+        _checkinResult = null;
+        _situation = await Mediator.Send(
+            new IdentifyCheckinSituationQuery(MeetingId, _searchTerm.Trim()));
+
+        if (_situation is null)
+        {
+            Snackbar.Add("Không tìm thấy cổ đông.", Severity.Warning);
+            return;
+        }
+
+        // Pre-fill phone
+        _phoneInput = _situation.PhoneNumber;
+        _giftReceived = false;
+    }
+
+    private async Task ConfirmCheckin()
+    {
+        if (_situation is null) return;
+        _processing = true;
+
+        try
+        {
+            _checkinResult = await Mediator.Send(new PerformCheckinCommand(
+                MeetingId,
+                _situation.ShareholderId,
+                _situation.ShareholderIdNumber,
+                _situation.ShareholderName,
+                _phoneInput,
+                PrintMode.Consolidated,
+                _giftReceived,
+                null, // PosTerminal — sẽ lấy từ config sau
+                "operator",
+                null
+            ));
+
+            Snackbar.Add($"✅ Check-in thành công! Mã: {_checkinResult.AttendCode}", Severity.Success);
+
+            // Reset search for next CĐ
+            _searchTerm = "";
+            _situation = null;
+            await RefreshTopbar();
+            await RefreshReprintQueue();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Lỗi: {ex.Message}", Severity.Error);
+        }
+        finally { _processing = false; }
+    }
+
+    private async Task HandleMergeAtCounter()
+    {
+        Snackbar.Add("MERGE tại quầy — chức năng sẽ được triển khai (yêu cầu xác nhận kép).", Severity.Info);
+    }
+
+    private async Task HandleCheckinIndependent()
+    {
+        // Xóa cảnh báo MERGE, cho phép check-in bình thường
+        if (_situation is not null)
+        {
+            _situation = _situation with { HasDuplicateDksh = false, DuplicateInfo = null, WarningMessage = null };
+        }
+    }
+
+    private string GetSituationBorderStyle() => _situation?.SituationCode switch
+    {
+        "F1" => "border-left:4px solid #2E7D32;",
+        "F2" or "F4" => "border-left:4px solid #1565C0;",
+        "F3" => "border-left:4px solid #E65100;",
+        "ALREADY_CHECKED_IN" => "border-left:4px solid #C62828;",
+        "FULLY_PROXIED" => "border-left:4px solid #9E9E9E;",
+        _ => "border-left:4px solid #1275BC;"
+    };
+
+    private Color GetSituationChipColor() => _situation?.SituationCode switch
+    {
+        "F1" => Color.Success,
+        "F2" or "F4" => Color.Info,
+        "F3" => Color.Warning,
+        "ALREADY_CHECKED_IN" => Color.Error,
+        "FULLY_PROXIED" => Color.Default,
+        _ => Color.Primary
+    };
+
+    private static string GetBallotTypeLabel(BallotType type) => type switch
+    {
+        BallotType.VotingCard => "Thẻ BQ",
+        BallotType.VotingBallot => "Phiếu BQ",
+        BallotType.ElectionHDQT => "Bầu HĐQT",
+        BallotType.ElectionBKS => "Bầu BKS",
+        _ => type.ToString()
+    };
+
+    private static string GetBallotIcon(BallotType type) => type switch
+    {
+        BallotType.VotingCard => Icons.Material.Filled.Badge,
+        BallotType.VotingBallot => Icons.Material.Filled.Ballot,
+        BallotType.ElectionHDQT => Icons.Material.Filled.HowToVote,
+        BallotType.ElectionBKS => Icons.Material.Filled.Gavel,
+        _ => Icons.Material.Filled.Description
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_topbarTimer is not null) await _topbarTimer.DisposeAsync();
+    }
+}

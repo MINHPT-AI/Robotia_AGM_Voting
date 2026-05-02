@@ -1,0 +1,127 @@
+@using Mms.Application.Meetings.Dtos
+@using Mms.Application.Shareholders.Dtos
+@using Mms.Infrastructure.Parsing
+
+<MudPaper Elevation="2" Class="pa-6">
+    <MudGrid>
+        @* Left: Meeting info *@
+        <MudItem xs="12" md="4">
+            <MudText Typo="Typo.overline" Color="Color.Primary" Class="mb-2">CUỘC HỌP MỤC TIÊU</MudText>
+            <MudTextField Value="@(Meeting?.Title ?? "")" Label="Tên cuộc họp"
+                          Variant="Variant.Outlined" ReadOnly="true" Class="mb-3" />
+            <MudTextField Value="@(Meeting?.RecordDate.ToString("dd/MM/yyyy") ?? "")" Label="Ngày ĐKCC"
+                          Variant="Variant.Outlined" ReadOnly="true"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.CalendarToday" />
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                * Ngày chốt danh sách cổ đông từ VSDC
+            </MudText>
+        </MudItem>
+
+        @* Right: Upload zone *@
+        <MudItem xs="12" md="8">
+            <MudFileUpload T="IBrowserFile" Accept=".xlsx"
+                           MaximumFileCount="1"
+                           FilesChanged="OnFileSelected">
+                <ActivatorContent>
+                    <MudPaper Elevation="0" Class="pa-8 d-flex flex-column align-center justify-center"
+                              Style="border:2px dashed #c0c7d2;border-radius:12px;min-height:200px;cursor:pointer;transition:background 0.2s;"
+                              onmouseover="this.style.background='#f2f4f6'" onmouseout="this.style.background='transparent'">
+                        <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Large" Color="Color.Primary" />
+                        <MudText Typo="Typo.subtitle1" Class="mt-2"><strong>Kéo & Thả file VSDC</strong></MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">hoặc nhấp để duyệt file từ máy tính</MudText>
+                        <MudChip T="string" Size="Size.Small" Color="Color.Default" Class="mt-2">.XLSX</MudChip>
+                    </MudPaper>
+                </ActivatorContent>
+            </MudFileUpload>
+
+            @if (_processing)
+            {
+                <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mt-2" />
+                <MudText Typo="Typo.caption" Color="Color.Primary">Đang phân tích file...</MudText>
+            }
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-2">@_errorMessage</MudAlert>
+            }
+            @if (!string.IsNullOrEmpty(_fileName))
+            {
+                <MudAlert Severity="Severity.Success" Class="mt-2">
+                    Đã tải: <strong>@_fileName</strong> — @_rowCount dòng dữ liệu
+                </MudAlert>
+            }
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@code {
+    [Parameter] public MeetingDetailDto? Meeting { get; set; }
+    [Parameter] public EventCallback<(VsdcParseResult, List<ShareholderImportDto>)> OnFileLoaded { get; set; }
+
+    private bool _processing;
+    private string? _errorMessage;
+    private string? _fileName;
+    private int _rowCount;
+
+    private async Task OnFileSelected(IBrowserFile? file)
+    {
+        if (file == null) return;
+
+        _errorMessage = null;
+        _fileName = null;
+
+        // Validate extension
+        if (!file.Name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+        {
+            _errorMessage = "Chỉ chấp nhận file .xlsx. File .xls hoặc .csv không được hỗ trợ.";
+            return;
+        }
+
+        // Validate size (20MB)
+        if (file.Size > 20 * 1024 * 1024)
+        {
+            _errorMessage = "File quá lớn (tối đa 20MB).";
+            return;
+        }
+
+        _processing = true;
+        StateHasChanged();
+
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            ms.Position = 0;
+
+            var parser = new VsdcParser();
+            var parseResult = await Task.Run(() => parser.Parse(ms));
+
+            // Map raw rows → DTOs
+            var mapped = new List<ShareholderImportDto>();
+            int order = 1;
+            foreach (var raw in parseResult.Rows)
+            {
+                mapped.Add(VsdcRowMapper.Map(raw, order++));
+            }
+
+            _fileName = file.Name;
+            _rowCount = mapped.Count;
+
+            await OnFileLoaded.InvokeAsync((parseResult, mapped));
+        }
+        catch (VsdcFormatException ex)
+        {
+            _errorMessage = $"Lỗi format VSDC: {ex.Message}" +
+                (ex.RowIndex.HasValue ? $" (dòng {ex.RowIndex})" : "");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Lỗi đọc file: {ex.Message}";
+        }
+        finally
+        {
+            _processing = false;
+            StateHasChanged();
+        }
+    }
+}

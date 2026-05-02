@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: mms
+      POSTGRES_USER: ${POSTGRES_USER:-mms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_local_only}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+    networks: [mms-net]
+
+  libreoffice:
+    build:
+      context: .
+      dockerfile: docker/libreoffice-stub.Dockerfile
+    networks: [mms-net]
+
+  blazor-app:
+    build:
+      context: .
+      dockerfile: docker/blazor-app.Dockerfile
+    environment:
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=mms;Username=${POSTGRES_USER:-mms};Password=${POSTGRES_PASSWORD:-changeme_local_only}"
+      ASPNETCORE_ENVIRONMENT: Development
+      JWT_SECRET: ${JWT_SECRET:-replace-with-openssl-rand-base64-32-minimum}
+      Jwt__Issuer: mms-local
+      Jwt__Audience: mms-users
+      SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-admin}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Admin@2026!}
+      AppBaseUrl: "http://localhost:8080/"
+    volumes:
+      - ./uploads:/app/wwwroot/uploads   # persist uploaded images across restarts
+      - dp_keys:/app/keys                # persist DataProtection keys across restarts
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    networks: [mms-net]
+
+volumes:
+  postgres_data:
+  dp_keys:
+
+networks:
+  mms-net:
+    driver: bridge

@@ -1,0 +1,50 @@
+/* MMS Application Styles */
+
+/* Manrope & Inter fonts — self-hosted for offline LAN */
+/* TODO: Download fonts from Google Fonts
+   Place .woff2 files in wwwroot/fonts/ and uncomment below */
+
+/* Fallback: use Google Fonts CDN (disable when running offline) */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@400;500;600;700&display=swap');
+
+html, body {
+    font-family: 'Manrope', Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    margin: 0;
+    padding: 0;
+    background-color: #F5F7F9; /* Obsidian Neutral */
+    color: #14171C; /* Obsidian Secondary */
+}
+
+/* Các nhãn nhỏ, text button dùng Inter */
+label, .mud-button-label {
+    font-family: 'Inter', Helvetica, Arial, sans-serif;
+}
+
+/* Blazor error UI */
+#blazor-error-ui {
+    background: #1275BC; /* Obsidian Primary */
+    color: white;
+    bottom: 0;
+    display: none;
+    left: 0;
+    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+}
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.5rem;
+}
+
+/* Login page centering - Updated based on new Primary color */
+.login-container {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #1275BC 0%, #0d588f 100%);
+}

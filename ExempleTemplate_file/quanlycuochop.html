@@ -1,0 +1,292 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Meeting Management - The Sovereign Ledger</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-tertiary-container": "#ffa781",
+                      "inverse-primary": "#b0c6ff",
+                      "surface": "#f9f9f9",
+                      "tertiary-fixed-dim": "#ffb596",
+                      "surface-tint": "#2b5bb5",
+                      "primary-fixed-dim": "#b0c6ff",
+                      "surface-container": "#eeeeee",
+                      "secondary-fixed": "#e0e0ff",
+                      "primary-fixed": "#d9e2ff",
+                      "outline-variant": "#c3c6d4",
+                      "on-primary-fixed": "#001945",
+                      "on-tertiary-fixed-variant": "#7d2d00",
+                      "on-primary-container": "#a1bbff",
+                      "on-primary": "#ffffff",
+                      "secondary": "#4c56af",
+                      "on-secondary-fixed-variant": "#343d96",
+                      "on-tertiary": "#ffffff",
+                      "on-secondary-container": "#27308a",
+                      "secondary-fixed-dim": "#bdc2ff",
+                      "surface-dim": "#dadada",
+                      "on-error-container": "#93000a",
+                      "background": "#f9f9f9",
+                      "on-background": "#1a1c1c",
+                      "inverse-surface": "#2f3131",
+                      "error-container": "#ffdad6",
+                      "surface-variant": "#e2e2e2",
+                      "on-secondary": "#ffffff",
+                      "surface-container-low": "#f3f3f3",
+                      "tertiary-container": "#853100",
+                      "on-surface-variant": "#434652",
+                      "on-error": "#ffffff",
+                      "surface-container-high": "#e8e8e8",
+                      "outline": "#737783",
+                      "tertiary": "#602100",
+                      "inverse-on-surface": "#f1f1f1",
+                      "primary-container": "#0d47a1",
+                      "surface-bright": "#f9f9f9",
+                      "on-primary-fixed-variant": "#00429c",
+                      "primary": "#003178",
+                      "on-secondary-fixed": "#000767",
+                      "tertiary-fixed": "#ffdbcd",
+                      "on-tertiary-fixed": "#360f00",
+                      "surface-container-highest": "#e2e2e2",
+                      "error": "#ba1a1a",
+                      "secondary-container": "#959efd",
+                      "surface-container-lowest": "#ffffff",
+                      "on-surface": "#1a1c1c"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {},
+              "fontFamily": {
+                      "headline": [
+                              "Inter"
+                      ],
+                      "body": [
+                              "Inter"
+                      ],
+                      "label": [
+                              "Inter"
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        body {
+            background-color: #f9f9f9;
+            color: #1a1c1c;
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        .glass-panel {
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        
+        .ambient-shadow {
+            box-shadow: 0 8px 40px rgba(26, 28, 28, 0.06);
+        }
+        
+        .btn-primary-gradient {
+            background: linear-gradient(135deg, #003178 0%, #0d47a1 100%);
+        }
+        
+        .ghost-border {
+            box-shadow: inset 0 0 0 1px rgba(195, 198, 212, 0.15);
+        }
+        
+        /* Hide scrollbar for clean look */
+        ::-webkit-scrollbar {
+            width: 0px;
+            background: transparent;
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface h-screen overflow-hidden flex">
+<!-- SideNavBar Component -->
+<nav class="h-screen w-72 flex-col fixed left-0 top-0 bg-surface-container-low border-none z-50 flex py-6 px-4 space-y-2">
+<div class="mb-10 px-4">
+<div class="flex items-center gap-3 mb-2">
+<div class="w-8 h-8 rounded bg-primary flex items-center justify-center text-on-primary font-bold">
+<span class="material-symbols-outlined text-sm" data-icon="account_balance" style="">account_balance</span>
+</div>
+<h1 class="text-primary font-bold tracking-tighter text-lg uppercase" style="">Sổ cái chủ quyền</h1>
+</div>
+<p class="text-xs text-on-surface-variant tracking-widest uppercase" style="">Quản lý tổ chức</p>
+</div>
+<div class="flex flex-col space-y-2 flex-grow">
+<!-- Inactive -->
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 group" href="#" style="">
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors" data-icon="dashboard" style="">dashboard</span>
+<span class="font-['Inter'] tracking-tight text-sm font-medium uppercase" style="">Bảng điều khiển</span>
+</a>
+<!-- Active -->
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg bg-surface-container-lowest text-primary font-bold shadow-[0_2px_10px_rgba(26,28,28,0.04)]" href="#" style="">
+<span class="material-symbols-outlined" data-icon="event" data-weight="fill" style="font-variation-settings: &quot;FILL&quot; 1;">event</span>
+<span class="font-['Inter'] tracking-tight text-sm font-bold uppercase" style="">Cuộc họp</span>
+</a>
+<!-- Inactive -->
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 group" href="#" style="">
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors" data-icon="description" style="">description</span>
+<span class="font-['Inter'] tracking-tight text-sm font-medium uppercase" style="">Biểu mẫu</span>
+</a>
+<!-- Inactive -->
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 group" href="#" style="">
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors" data-icon="group" style="">group</span>
+<span class="font-['Inter'] tracking-tight text-sm font-medium uppercase" style="">Tài khoản</span>
+</a>
+<!-- Inactive -->
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 group" href="#" style="">
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors" data-icon="settings" style="">settings</span>
+<span class="font-['Inter'] tracking-tight text-sm font-medium uppercase" style="">Cài đặt</span>
+</a>
+</div>
+<div class="mt-auto px-4 py-4">
+<div class="flex items-center gap-3">
+<img alt="Administrator Profile" class="w-10 h-10 rounded-full ghost-border" data-alt="Professional headshot of a middle-aged male administrator in a dark blue suit, looking confident against a neutral gray background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAImRrq4SrVGnSrGE6_arASkNNkBbFEOKsGJ9oNE64lHpTxdrlUn0T_81YjFc6P1HpRMp_3EuZ-sRoxRrwOcN1qTxO2uKigszQuX9vL0a-XffOKNoO6YRwTctk4mOK30cHRupPLCFuiGLCUswXusHwnPiornY_Fpq6UJIVBO-bp0R9NdAU2kqzf7LUQt9Qor9GRzGUcUf1Ex8ycInqJb3s5MFmXpu6_uH_R1bWJWwSuE_Zm9Su-YIxrdXOAFOWTmxBw0GsP6Jvqmv4" style="">
+<div>
+<p class="text-sm font-semibold text-on-surface" style="">J. Sterling</p>
+<p class="text-xs text-on-surface-variant" style="">Quản trị viên</p>
+</div>
+</div>
+</div>
+</nav>
+<!-- Main Content Wrapper -->
+<div class="ml-72 flex-1 flex flex-col h-screen overflow-hidden">
+<!-- TopAppBar Component -->
+<header class="h-16 w-full glass-panel shadow-[0_8px_40px_rgba(26,28,28,0.06)] z-40 flex justify-between items-center px-8 relative">
+<div class="flex items-center gap-6">
+<span class="text-primary font-black tracking-widest text-xs uppercase" style="">Ban điều hành MMS</span>
+<!-- Search on Left -->
+<div class="relative w-64 ml-4">
+<span class="material-symbols-outlined absolute left-3 top-1/2 transform -translate-y-1/2 text-outline text-sm" data-icon="search" style="">search</span>
+<input class="w-full bg-surface-container-low text-on-surface text-sm rounded-lg pl-10 pr-4 py-2 border-none focus:ring-1 focus:ring-primary ghost-border outline-none transition-all placeholder-on-surface-variant" placeholder="Tìm kiếm sổ cái..." type="text">
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-4">
+<button class="text-on-surface-variant hover:text-primary transition-colors cursor-pointer active:opacity-70" style="">
+<span class="material-symbols-outlined" data-icon="notifications_active" style="">notifications_active</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors cursor-pointer active:opacity-70" style="">
+<span class="material-symbols-outlined" data-icon="dns" style="">dns</span>
+</button>
+</div>
+<button class="btn-primary-gradient text-on-primary px-6 py-2 rounded-lg font-semibold tracking-tight text-sm ambient-shadow hover:opacity-95 transition-opacity active:opacity-80" style="">Bỏ phiếu</button>
+</div>
+</header>
+<!-- Canvas Area -->
+<main class="flex-1 overflow-y-auto p-8 lg:p-12">
+<!-- Header Section -->
+<div class="flex justify-between items-end mb-12">
+<div>
+<h2 class="text-4xl font-headline font-extrabold text-on-surface tracking-tight" style="letter-spacing: -0.02em;">QUẢN LÝ CUỘC HỌP</h2>
+<p class="text-on-surface-variant mt-2 text-sm tracking-wide" style="">Tổng quan về tất cả các cuộc họp tổ chức đã lên lịch và trong lịch sử.</p>
+</div>
+<button class="btn-primary-gradient text-on-primary px-6 py-3 rounded-lg font-semibold tracking-tight text-sm ambient-shadow hover:opacity-95 transition-opacity flex items-center gap-2" style=""><span class="material-symbols-outlined text-sm" data-icon="add" style="">add</span> Tạo mới</button>
+</div>
+<!-- Filters Section (Tonal Shift) -->
+<div class="bg-surface-container-low rounded-lg p-4 mb-8 flex items-center justify-between">
+<div class="flex gap-4">
+<div class="relative">
+<select class="appearance-none bg-surface-container-lowest ghost-border text-on-surface text-sm font-medium py-2 pl-4 pr-10 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer">
+<option>Tất cả trạng thái</option>
+<option>Đang chuẩn bị</option>
+<option>Đã hoàn thành</option>
+<option>2022</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 transform -translate-y-1/2 text-outline pointer-events-none text-sm" data-icon="arrow_drop_down" style="">arrow_drop_down</span>
+</div>
+<div class="relative">
+<select class="appearance-none bg-surface-container-lowest ghost-border text-on-surface text-sm font-medium py-2 pl-4 pr-10 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer">
+<option>Tất cả trạng thái</option>
+<option>Đang chuẩn bị</option>
+<option>Đã hoàn thành</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 transform -translate-y-1/2 text-outline pointer-events-none text-sm" data-icon="arrow_drop_down" style="">arrow_drop_down</span>
+</div>
+</div>
+<div class="relative w-72">
+<span class="material-symbols-outlined absolute left-3 top-1/2 transform -translate-y-1/2 text-outline text-sm" data-icon="filter_list" style="">filter_list</span>
+<input class="w-full bg-surface-container-lowest text-on-surface text-sm rounded-lg pl-10 pr-4 py-2 ghost-border focus:ring-1 focus:ring-primary outline-none transition-all placeholder-on-surface-variant" placeholder="Lọc cuộc họp..." type="text">
+</div>
+</div>
+<!-- Data Table (The Ledger) -->
+<div class="bg-surface-container-lowest rounded-lg ambient-shadow overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-primary text-on-primary"><th class="py-4 px-6 text-xs font-bold tracking-widest uppercase" style="">#</th><th class="py-4 px-6 text-xs font-bold tracking-widest uppercase" style="">Tên cuộc họp</th><th class="py-4 px-6 text-xs font-bold tracking-widest uppercase" style="">Ngày ĐKCC</th><th class="py-4 px-6 text-xs font-bold tracking-widest uppercase text-right" style="">Tổng SH</th><th class="py-4 px-6 text-xs font-bold tracking-widest uppercase text-center" style="">Trạng thái</th><th class="py-4 px-6 text-xs font-bold tracking-widest uppercase text-right" style="">Thao tác</th></tr>
+</thead>
+<tbody class="text-sm">
+<!-- Row 1 -->
+<tr class="bg-surface hover:bg-surface-container-low transition-colors group">
+<td class="py-5 px-6 font-mono text-on-surface-variant" style="">001</td>
+<td class="py-5 px-6 font-semibold text-on-surface" style="">Annual General Meeting 2024</td>
+<td class="py-5 px-6 text-on-surface-variant" style="">Oct 15, 2024</td>
+<td class="py-5 px-6 font-mono text-right" style="">45,200,000</td>
+<td class="py-5 px-6 text-center" style="">
+<span class="inline-flex items-center bg-surface-container-lowest border-l-2 border-yellow-500 text-on-surface px-3 py-1 rounded text-xs font-bold tracking-wide shadow-sm" style="">Đang chuẩn bị</span>
+</td>
+<td class="py-5 px-6 text-right space-x-2" style=""><button class="text-primary hover:text-primary-container font-medium text-sm transition-colors cursor-pointer" style="">Xem</button><button class="text-outline hover:text-on-surface font-medium text-sm transition-colors cursor-pointer" style="">Sửa</button><button class="text-outline hover:text-on-surface font-medium text-sm transition-colors cursor-pointer" style="">Nhân bản</button><button class="text-outline hover:text-error font-medium text-sm transition-colors cursor-pointer" style="">Xóa</button></td>
+</tr>
+<!-- Row 2 -->
+<tr class="bg-surface-container-low hover:bg-surface-container-high transition-colors group">
+<td class="py-5 px-6 font-mono text-on-surface-variant" style="">002</td>
+<td class="py-5 px-6 font-semibold text-on-surface" style="">Q3 Extraordinary General Meeting</td>
+<td class="py-5 px-6 text-on-surface-variant" style="">Aug 22, 2024</td>
+<td class="py-5 px-6 font-mono text-right" style="">12,500,000</td>
+<td class="py-5 px-6 text-center" style="">
+<span class="inline-flex items-center bg-surface-container-lowest border-l-2 border-green-600 text-on-surface px-3 py-1 rounded text-xs font-bold tracking-wide shadow-sm" style="">Đã hoàn thành</span>
+</td>
+<td class="py-5 px-6 text-right space-x-2" style=""><button class="text-primary hover:text-primary-container font-medium text-sm transition-colors cursor-pointer" style="">Xem</button><button class="text-outline hover:text-on-surface font-medium text-sm transition-colors cursor-pointer" style="">Sửa</button><button class="text-outline hover:text-on-surface font-medium text-sm transition-colors cursor-pointer" style="">Nhân bản</button><button class="text-outline hover:text-error font-medium text-sm transition-colors cursor-pointer" style="">Xóa</button></td>
+</tr>
+<!-- Row 3 -->
+<tr class="bg-surface hover:bg-surface-container-low transition-colors group">
+<td class="py-5 px-6 font-mono text-on-surface-variant" style="">003</td>
+<td class="py-5 px-6 font-semibold text-on-surface" style="">Board of Directors Q2 Review</td>
+<td class="py-5 px-6 text-on-surface-variant" style="">Jun 10, 2024</td>
+<td class="py-5 px-6 font-mono text-right" style="">5,100,000</td>
+<td class="py-5 px-6 text-center" style="">
+<span class="inline-flex items-center bg-surface-container-lowest border-l-2 border-green-600 text-on-surface px-3 py-1 rounded text-xs font-bold tracking-wide shadow-sm" style="">Đã hoàn thành</span>
+</td>
+<td class="py-5 px-6 text-right space-x-2" style=""><button class="text-primary hover:text-primary-container font-medium text-sm transition-colors cursor-pointer" style="">Xem</button><button class="text-outline hover:text-on-surface font-medium text-sm transition-colors cursor-pointer" style="">Sửa</button><button class="text-outline hover:text-on-surface font-medium text-sm transition-colors cursor-pointer" style="">Nhân bản</button><button class="text-outline hover:text-error font-medium text-sm transition-colors cursor-pointer" style="">Xóa</button></td>
+</tr>
+<!-- Row 4 -->
+<tr class="bg-surface-container-low hover:bg-surface-container-high transition-colors group">
+<td class="py-5 px-6 font-mono text-on-surface-variant" style="">004</td>
+<td class="py-5 px-6 font-semibold text-on-surface" style="">Annual General Meeting 2023</td>
+<td class="py-5 px-6 text-on-surface-variant" style="">Oct 12, 2023</td>
+<td class="py-5 px-6 font-mono text-right" style="">43,800,000</td>
+<td class="py-5 px-6 text-center" style="">
+<span class="inline-flex items-center bg-surface-container-lowest border-l-2 border-green-600 text-on-surface px-3 py-1 rounded text-xs font-bold tracking-wide shadow-sm" style="">Đã hoàn thành</span>
+</td>
+<td class="py-5 px-6 text-right space-x-2" style=""><button class="text-primary hover:text-primary-container font-medium text-sm transition-colors cursor-pointer" style="">Xem</button><button class="text-outline hover:text-on-surface font-medium text-sm transition-colors cursor-pointer" style="">Sửa</button><button class="text-outline hover:text-on-surface font-medium text-sm transition-colors cursor-pointer" style="">Nhân bản</button><button class="text-outline hover:text-error font-medium text-sm transition-colors cursor-pointer" style="">Xóa</button></td>
+</tr>
+</tbody>
+</table>
+<!-- Pagination / Footer -->
+<div class="bg-surface-container-lowest px-6 py-4 flex items-center justify-between border-t border-surface-container-low">
+<span class="text-sm text-on-surface-variant" style="">Hiển thị 1 đến 4 trong số 4 mục</span>
+<div class="flex gap-2">
+<button class="px-3 py-1 text-sm font-medium text-outline hover:text-primary disabled:opacity-50" disabled="" style="">Trước</button>
+<button class="px-3 py-1 text-sm font-medium text-primary" style="">1</button>
+<button class="px-3 py-1 text-sm font-medium text-outline hover:text-primary disabled:opacity-50" disabled="" style="">Tiếp</button>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

@@ -1,0 +1,102 @@
+@using Mms.Application.Shareholders.Dtos
+
+<MudPaper Elevation="2" Class="pa-6">
+    @if (Result != null)
+    {
+        @* Success banner *@
+        <div class="d-flex flex-column align-center mb-6">
+            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Large"
+                     Style="font-size:64px;color:#2e7d32;" />
+            <MudText Typo="Typo.h5" Class="mt-2" Style="font-weight:700;color:#2e7d32;">Import Thành Công!</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Hoàn thành trong <strong>@Result.ElapsedTime.TotalSeconds.ToString("F1")s</strong>
+            </MudText>
+        </div>
+
+        @* Row 1: Main stats *@
+        <MudGrid Class="mb-4">
+            <MudItem xs="12" md="4">
+                <MudPaper Elevation="0" Class="pa-4 text-center" Style="background:#e3f2fd;border-radius:10px;">
+                    <MudText Typo="Typo.h4" Style="font-weight:700;color:#1565c0;">@Result.TotalRead</MudText>
+                    <MudText Typo="Typo.caption">Tổng dòng đã đọc</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="6" md="4">
+                <MudPaper Elevation="0" Class="pa-4 text-center" Style="background:#e8f5e9;border-radius:10px;">
+                    <MudText Typo="Typo.h4" Style="font-weight:700;color:#2e7d32;">@Result.Inserted</MudText>
+                    <MudText Typo="Typo.caption">Thêm mới</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="6" md="4">
+                <MudPaper Elevation="0" Class="pa-4 text-center" Style="background:#fff3e0;border-radius:10px;">
+                    <MudText Typo="Typo.h4" Style="font-weight:700;color:#e65100;">@Result.Updated</MudText>
+                    <MudText Typo="Typo.caption">Cập nhật</MudText>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+
+        @* Row 2: Classification breakdown *@
+        <MudGrid Class="mb-4">
+            <MudItem xs="12" md="6">
+                <MudPaper Elevation="0" Class="pa-4" Style="background:#f3e5f5;border-radius:10px;">
+                    <MudText Typo="Typo.overline" Style="color:#7b1fa2;">PHÂN LOẠI CỔ ĐÔNG</MudText>
+                    <div class="d-flex justify-space-between mt-2">
+                        <div class="text-center" style="flex:1;">
+                            <MudIcon Icon="@Icons.Material.Filled.Person" Color="Color.Primary" />
+                            <MudText Typo="Typo.h5" Style="font-weight:700;">@Result.IndividualCount</MudText>
+                            <MudText Typo="Typo.caption">Cá nhân</MudText>
+                        </div>
+                        <MudDivider Vertical="true" FlexItem="true" />
+                        <div class="text-center" style="flex:1;">
+                            <MudIcon Icon="@Icons.Material.Filled.Business" Color="Color.Secondary" />
+                            <MudText Typo="Typo.h5" Style="font-weight:700;">@Result.OrganizationCount</MudText>
+                            <MudText Typo="Typo.caption">Tổ chức</MudText>
+                        </div>
+                    </div>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudPaper Elevation="0" Class="pa-4" Style="background:#e0f2f1;border-radius:10px;">
+                    <MudText Typo="Typo.overline" Style="color:#00695c;">PHÂN LOẠI QUỐC TỊCH</MudText>
+                    <div class="d-flex justify-space-between mt-2">
+                        <div class="text-center" style="flex:1;">
+                            <MudIcon Icon="@Icons.Material.Filled.Flag" Style="color:#d32f2f;" />
+                            <MudText Typo="Typo.h5" Style="font-weight:700;">@Result.DomesticCount</MudText>
+                            <MudText Typo="Typo.caption">Trong nước</MudText>
+                        </div>
+                        <MudDivider Vertical="true" FlexItem="true" />
+                        <div class="text-center" style="flex:1;">
+                            <MudIcon Icon="@Icons.Material.Filled.Public" Color="Color.Info" />
+                            <MudText Typo="Typo.h5" Style="font-weight:700;">@Result.ForeignCount</MudText>
+                            <MudText Typo="Typo.caption">Nước ngoài</MudText>
+                        </div>
+                    </div>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+
+        @* Row 3: Total shares *@
+        <MudPaper Elevation="0" Class="pa-4 text-center mb-4" Style="background:#fce4ec;border-radius:10px;">
+            <MudText Typo="Typo.overline" Style="color:#c62828;">TỔNG QUYỀN BIỂU QUYẾT</MudText>
+            <MudText Typo="Typo.h4" Style="font-weight:700;color:#c62828;">@Result.TotalVotingShares.ToString("N0")</MudText>
+        </MudPaper>
+
+        @* Actions *@
+        <div class="d-flex justify-center gap-3">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Visibility"
+                       Href="@($"/meetings/{MeetingId}/shareholders")">Xem DS Cổ đông</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                       StartIcon="@Icons.Material.Filled.List"
+                       Href="/meetings">Về danh sách cuộc họp</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                       StartIcon="@Icons.Material.Filled.Refresh"
+                       Href="@($"/meetings/{MeetingId}/import")">Import file khác</MudButton>
+        </div>
+    }
+</MudPaper>
+
+@code {
+    [Parameter] public ImportResultDto? Result { get; set; }
+    [Parameter] public Guid MeetingId { get; set; }
+}

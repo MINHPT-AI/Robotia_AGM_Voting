@@ -1,0 +1,149 @@
+@page "/"
+@attribute [Authorize]
+@inject IMediator Mediator
+
+<PageTitle>Dashboard — MMS</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-6" Style="color:#1275BC;font-weight:700">Dashboard</MudText>
+
+@* Summary Cards *@
+<MudGrid Class="mb-6">
+    <MudItem xs="12" sm="4">
+        <MudCard Elevation="2">
+            <MudCardContent>
+                <div class="d-flex align-center">
+                    <MudIcon Icon="@Icons.Material.Filled.EventNote"
+                             Color="Color.Primary" Size="Size.Large" Class="mr-3" />
+                    <div>
+                        <MudText Typo="Typo.h4" Style="color:#1275BC">@_totalMeetings</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Tổng cuộc họp</MudText>
+                    </div>
+                </div>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="12" sm="4">
+        <MudCard Elevation="2">
+            <MudCardContent>
+                <div class="d-flex align-center">
+                    <MudIcon Icon="@Icons.Material.Filled.PlayCircle"
+                             Color="Color.Warning" Size="Size.Large" Class="mr-3" />
+                    <div>
+                        <MudText Typo="Typo.h4" Style="color:#f59e0b">@_activeMeetings</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Đang hoạt động</MudText>
+                    </div>
+                </div>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="12" sm="4">
+        <MudCard Elevation="2">
+            <MudCardContent>
+                <div class="d-flex align-center">
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
+                             Color="Color.Success" Size="Size.Large" Class="mr-3" />
+                    <div>
+                        <MudText Typo="Typo.h4" Style="color:#22c55e">@_completedMeetings</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Đã hoàn thành</MudText>
+                    </div>
+                </div>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+
+@* Recent Meetings Table *@
+<MudCard Elevation="2">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.h6">Cuộc họp gần nhất</MudText>
+        </CardHeaderContent>
+        <CardHeaderActions>
+            <MudButton Variant="Variant.Text" Color="Color.Primary" Href="/meetings">
+                Xem tất cả
+            </MudButton>
+        </CardHeaderActions>
+    </MudCardHeader>
+    <MudCardContent>
+        @if (_meetings is null)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        }
+        else if (!_meetings.Items.Any())
+        {
+            <MudText Color="Color.Secondary" Typo="Typo.body2" Class="py-4">
+                Chưa có cuộc họp nào. <MudLink Href="/meetings/new">Tạo cuộc họp đầu tiên</MudLink>
+            </MudText>
+        }
+        else
+        {
+            <MudDataGrid Items="_meetings.Items" Hover="true" Dense="true" Striped="true"
+                         Elevation="0">
+                <Columns>
+                    <PropertyColumn Property="m => m.Title" Title="Tên cuộc họp" />
+                    <TemplateColumn Title="Ngày họp">
+                        <CellTemplate Context="ctx">
+                            @ctx.Item.MeetingDate.ToString("dd/MM/yyyy")
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn Title="Trạng thái">
+                        <CellTemplate Context="ctx">
+                            <MudChip T="string" Size="Size.Small"
+                                     Color="@GetStatusColor(ctx.Item.Status)"
+                                     Variant="Variant.Filled">
+                                @GetStatusLabel(ctx.Item.Status)
+                            </MudChip>
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn Title="Cổ đông" CellStyle="text-align:right">
+                        <CellTemplate Context="ctx">
+                            @ctx.Item.ShareholderCount.ToString("N0")
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+            </MudDataGrid>
+        }
+    </MudCardContent>
+</MudCard>
+
+@code {
+    private PagedResult<MeetingListItemDto>? _meetings;
+    private int _totalMeetings;
+    private int _activeMeetings;
+    private int _completedMeetings;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _meetings = await Mediator.Send(new GetMeetingsQuery(Page: 1, PageSize: 5));
+        _totalMeetings = _meetings.TotalCount;
+
+        // Count active (CheckIn/InSession/Tallying) and completed
+        var allResult = await Mediator.Send(new GetMeetingsQuery(Page: 1, PageSize: 1000));
+        _activeMeetings = allResult.Items.Count(m =>
+            m.Status is MeetingStatus.CheckIn or MeetingStatus.InSession or MeetingStatus.Tallying);
+        _completedMeetings = allResult.Items.Count(m =>
+            m.Status == MeetingStatus.Completed);
+    }
+
+    private static Color GetStatusColor(MeetingStatus status) => status switch
+    {
+        MeetingStatus.New       => Color.Default,
+        MeetingStatus.Preparing => Color.Info,
+        MeetingStatus.CheckIn   => Color.Warning,
+        MeetingStatus.InSession => Color.Primary,
+        MeetingStatus.Tallying  => Color.Secondary,
+        MeetingStatus.Completed => Color.Success,
+        _                       => Color.Default,
+    };
+
+    private static string GetStatusLabel(MeetingStatus status) => status switch
+    {
+        MeetingStatus.New       => "Mới tạo",
+        MeetingStatus.Preparing => "Đang chuẩn bị",
+        MeetingStatus.CheckIn   => "Check-in",
+        MeetingStatus.InSession => "Đang diễn ra",
+        MeetingStatus.Tallying  => "Kiểm phiếu",
+        MeetingStatus.Completed => "Đã hoàn thành",
+        _                       => status.ToString(),
+    };
+}

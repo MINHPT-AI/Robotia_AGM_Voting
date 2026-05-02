@@ -1,0 +1,151 @@
+@page "/admin/users"
+@attribute [Authorize(Roles = "admin")]
+@inject IMediator Mediator
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Quản lý Tài Khoản — MMS</PageTitle>
+
+<div class="d-flex justify-space-between align-center mb-4">
+    <MudText Typo="Typo.h5" Style="color:#1275BC;font-weight:700">
+        Quản lý Tài Khoản
+    </MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.PersonAdd"
+               OnClick="OpenCreateDialog">
+        Tạo tài khoản
+    </MudButton>
+</div>
+
+<MudDataGrid @ref="_grid" T="UserListItemDto"
+             ServerData="LoadServerData"
+             Hover="true" Dense="true" Striped="true"
+             RowsPerPage="20">
+    <Columns>
+        <PropertyColumn Property="x => x.UserName" Title="Tên đăng nhập"
+                         Sortable="true" />
+        <PropertyColumn Property="x => x.FullName" Title="Họ tên" />
+        <PropertyColumn Property="x => x.Email" Title="Email" />
+        <TemplateColumn Title="Vai trò">
+            <CellTemplate>
+                <MudChip T="string" Size="Size.Small"
+                         Color="@GetRoleColor(context.Item.Role)">
+                    @context.Item.Role
+                </MudChip>
+            </CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="Trạng thái">
+            <CellTemplate>
+                <MudChip T="string" Size="Size.Small"
+                         Color="@(context.Item.IsActive ? Color.Success : Color.Error)">
+                    @(context.Item.IsActive ? "Hoạt động" : "Đã tắt")
+                </MudChip>
+            </CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="Đăng nhập lần cuối">
+            <CellTemplate>
+                @(context.Item.LastLoginAt?.ToString("dd/MM/yyyy HH:mm") ?? "Chưa đăng nhập")
+            </CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="Hành động" Sortable="false">
+            <CellTemplate>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                               Size="Size.Small" Color="Color.Primary"
+                               OnClick="@(() => OpenEditDialog(context.Item))"
+                               Title="Sửa" />
+                <MudIconButton Icon="@Icons.Material.Filled.Key"
+                               Size="Size.Small" Color="Color.Warning"
+                               OnClick="@(() => OpenResetPasswordDialog(context.Item))"
+                               Title="Đặt lại mật khẩu" />
+                <MudIconButton Icon="@(context.Item.IsActive ? Icons.Material.Filled.Lock : Icons.Material.Filled.LockOpen)"
+                               Size="Size.Small"
+                               Color="@(context.Item.IsActive ? Color.Error : Color.Success)"
+                               OnClick="@(() => ToggleActive(context.Item))"
+                               Title="@(context.Item.IsActive ? "Tắt tài khoản" : "Bật tài khoản")" />
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <PagerContent>
+        <MudDataGridPager T="UserListItemDto" />
+    </PagerContent>
+</MudDataGrid>
+
+@code {
+    private MudDataGrid<UserListItemDto>? _grid;
+
+    private async Task<GridData<UserListItemDto>> LoadServerData(GridState<UserListItemDto> state, CancellationToken ct)
+    {
+        var page = (state.Page) + 1; // MudDataGrid is 0-based
+        var result = await Mediator.Send(new GetUsersQuery(page, state.PageSize));
+        return new GridData<UserListItemDto>
+        {
+            Items = result.Items,
+            TotalItems = result.TotalCount,
+        };
+    }
+
+    private static Color GetRoleColor(string role) => role switch
+    {
+        "admin" => Color.Error,
+        "operator" => Color.Warning,
+        "checkin" => Color.Info,
+        _ => Color.Default,
+    };
+
+    private async Task OpenCreateDialog()
+    {
+        var dialog = await DialogService.ShowAsync<CreateUserDialog>("Tạo tài khoản mới",
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var dialogResult = await dialog.Result;
+        if (dialogResult is not null && !dialogResult.Canceled)
+            await _grid!.ReloadServerData();
+    }
+
+    private async Task OpenEditDialog(UserListItemDto user)
+    {
+        var parameters = new DialogParameters<EditUserDialog>
+        {
+            { x => x.User, user }
+        };
+        var dialog = await DialogService.ShowAsync<EditUserDialog>("Sửa tài khoản",
+            parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var dialogResult = await dialog.Result;
+        if (dialogResult is not null && !dialogResult.Canceled)
+            await _grid!.ReloadServerData();
+    }
+
+    private async Task OpenResetPasswordDialog(UserListItemDto user)
+    {
+        var parameters = new DialogParameters<ResetPasswordDialog>
+        {
+            { x => x.UserId, user.Id },
+            { x => x.UserName, user.UserName }
+        };
+        var dialog = await DialogService.ShowAsync<ResetPasswordDialog>("Đặt lại mật khẩu",
+            parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        await dialog.Result;
+    }
+
+    private async Task ToggleActive(UserListItemDto item)
+    {
+        var action = item.IsActive ? "TẮT" : "BẬT";
+        var confirm = await DialogService.ShowMessageBoxAsync(
+            "Xác nhận",
+            $"Bạn có chắc muốn {action} tài khoản {item.UserName}?",
+            yesText: "Xác nhận", cancelText: "Huỷ");
+
+        if (confirm == true)
+        {
+            try
+            {
+                await Mediator.Send(new ToggleUserActiveCommand(item.Id, !item.IsActive));
+                Snackbar.Add($"Đã {action.ToLower()} tài khoản {item.UserName}", Severity.Success);
+                await _grid!.ReloadServerData();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Lỗi: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

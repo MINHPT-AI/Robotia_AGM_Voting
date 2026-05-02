@@ -1,0 +1,205 @@
+@page "/templates"
+@attribute [Authorize(Roles = "admin")]
+@inject IMediator Mediator
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>Thư Viện Mẫu Văn Bản — MMS</PageTitle>
+
+<div class="d-flex justify-space-between align-center mb-4">
+    <MudText Typo="Typo.h5" Style="color:#1275BC;font-weight:700">
+        Thư Viện Mẫu Văn Bản
+    </MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.CloudUpload"
+               OnClick="OpenUploadDialog">
+        Tải lên mẫu mới
+    </MudButton>
+</div>
+
+@* ── Filter chips ── *@
+<div class="d-flex flex-wrap gap-2 mb-4">
+    <MudChip T="string" Color="@(_filterType is null ? Color.Primary : Color.Default)"
+             OnClick="@(() => SetFilter(null))">Tất cả</MudChip>
+    <MudChip T="string" Color="@(_filterType == TemplateType.Invitation ? Color.Primary : Color.Default)"
+             OnClick="@(() => SetFilter(TemplateType.Invitation))">Thư mời</MudChip>
+    <MudChip T="string" Color="@(_filterType == TemplateType.VotingCard ? Color.Primary : Color.Default)"
+             OnClick="@(() => SetFilter(TemplateType.VotingCard))">Thẻ BQ</MudChip>
+    <MudChip T="string" Color="@(_filterType == TemplateType.VotingBallot ? Color.Primary : Color.Default)"
+             OnClick="@(() => SetFilter(TemplateType.VotingBallot))">Phiếu BQ</MudChip>
+    <MudChip T="string" Color="@(_filterType == TemplateType.ElectionHDQT ? Color.Primary : Color.Default)"
+             OnClick="@(() => SetFilter(TemplateType.ElectionHDQT))">Bầu HĐQT</MudChip>
+    <MudChip T="string" Color="@(_filterType == TemplateType.ElectionBKS ? Color.Primary : Color.Default)"
+             OnClick="@(() => SetFilter(TemplateType.ElectionBKS))">Bầu BKS</MudChip>
+    <MudChip T="string" Color="@(_filterType == TemplateType.QuorumReport ? Color.Primary : Color.Default)"
+             OnClick="@(() => SetFilter(TemplateType.QuorumReport))">BB Thẩm tra</MudChip>
+    <MudChip T="string" Color="@(_filterType == TemplateType.TallyReport ? Color.Primary : Color.Default)"
+             OnClick="@(() => SetFilter(TemplateType.TallyReport))">BB Kiểm phiếu</MudChip>
+</div>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudDataGrid T="TemplateListItemDto" Items="_templates"
+                 Hover="true" Dense="true" Striped="true"
+                 FixedHeader="true" Height="calc(100vh - 280px)"
+                 RowClick="@((args) => OpenEditor(args.Item))">
+        <Columns>
+            <PropertyColumn Property="x => x.Name" Title="Tên mẫu" />
+            <TemplateColumn Title="Loại">
+                <CellTemplate>
+                    @GetTemplateTypeLabel(context.Item.TemplateType)
+                </CellTemplate>
+            </TemplateColumn>
+            <PropertyColumn Property="x => x.Language" Title="Ngôn ngữ" />
+            <TemplateColumn Title="Kích thước">
+                <CellTemplate>
+                    @FormatFileSize(context.Item.FileSize)
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Trạng thái">
+                <CellTemplate>
+                    @if (context.Item.IsFinalized)
+                    {
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small">🔒 Đã chốt</MudChip>
+                    }
+                    else if (context.Item.HasHtmlContent)
+                    {
+                        <MudChip T="string" Color="Color.Info" Size="Size.Small">✏️ Đã soạn</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Color="Color.Warning" Size="Size.Small">📤 Chờ soạn</MudChip>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Ngày upload">
+                <CellTemplate>
+                    @(context.Item.UploadedAt?.ToString("dd/MM/yyyy HH:mm") ?? "—")
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Hành động" Sortable="false">
+                <CellTemplate>
+                    @* Edit — opens editor *@
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                   Size="Size.Small" Color="Color.Primary"
+                                   OnClick="@(() => OpenEditor(context.Item))"
+                                   Title="Mở soạn thảo" />
+                    @* Clone *@
+                    <MudIconButton Icon="@Icons.Material.Filled.ContentCopy"
+                                   Size="Size.Small" Color="Color.Secondary"
+                                   OnClick="@(() => CloneTemplate(context.Item))"
+                                   Title="Nhân bản" />
+                    @* Delete — draft only *@
+                    @if (!context.Item.IsFinalized)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                       Size="Size.Small" Color="Color.Error"
+                                       OnClick="@(() => DeleteTemplate(context.Item))"
+                                       Title="Xóa" />
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+    </MudDataGrid>
+}
+
+@code {
+    private IList<TemplateListItemDto> _templates = [];
+    private TemplateType? _filterType;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        _templates = await Mediator.Send(new GetTemplatesQuery(_filterType));
+        _loading = false;
+    }
+
+    private async Task SetFilter(TemplateType? type)
+    {
+        _filterType = type;
+        await LoadData();
+    }
+
+    private async Task OpenUploadDialog()
+    {
+        var dialog = await DialogService.ShowAsync<UploadTemplateDialog>("Tải lên mẫu văn bản",
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled && result.Data is Guid templateId)
+        {
+            Nav.NavigateTo($"/templates/{templateId}/edit");
+        }
+    }
+
+    private void OpenEditor(TemplateListItemDto item)
+    {
+        Nav.NavigateTo($"/templates/{item.Id}/edit");
+    }
+
+    private async Task CloneTemplate(TemplateListItemDto item)
+    {
+        var parameters = new DialogParameters<CloneTemplateDialog>
+        {
+            { x => x.SourceName, item.Name },
+            { x => x.SourceId, item.Id }
+        };
+        var dialog = await DialogService.ShowAsync<CloneTemplateDialog>("Nhân bản mẫu",
+            parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled)
+            await LoadData();
+    }
+
+    private async Task DeleteTemplate(TemplateListItemDto item)
+    {
+        var confirm = await DialogService.ShowMessageBoxAsync(
+            "Xóa mẫu",
+            $"Bạn có chắc muốn xóa mẫu \"{item.Name}\"? Thao tác này không thể hoàn tác.",
+            yesText: "Xóa", cancelText: "Huỷ");
+
+        if (confirm == true)
+        {
+            try
+            {
+                await Mediator.Send(new DeleteTemplateCommand(item.Id));
+                Snackbar.Add($"Đã xóa mẫu \"{item.Name}\"", Severity.Success);
+                await LoadData();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Lỗi: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private static string GetTemplateTypeLabel(TemplateType type) => type switch
+    {
+        TemplateType.Invitation => "Thư mời",
+        TemplateType.VotingCard => "Thẻ BQ",
+        TemplateType.VotingBallot => "Phiếu BQ",
+        TemplateType.ElectionHDQT => "Bầu HĐQT",
+        TemplateType.ElectionBKS => "Bầu BKS",
+        TemplateType.QuorumReport => "BB Thẩm tra",
+        TemplateType.TallyReport => "BB Kiểm phiếu",
+        _ => type.ToString()
+    };
+
+    private static string FormatFileSize(long? bytes)
+    {
+        if (bytes is null) return "—";
+        if (bytes.Value < 1024) return $"{bytes} B";
+        if (bytes.Value < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / (1024.0 * 1024.0):F1} MB";
+    }
+}

@@ -1,0 +1,57 @@
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudTextField @bind-Value="_newName" Label="Tên mẫu mới" Required="true"
+                      MaxLength="200" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Huỷ</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   OnClick="Submit" Disabled="_processing">
+            @if (_processing)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            Nhân bản
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public string SourceName { get; set; } = "";
+    [Parameter] public Guid SourceId { get; set; }
+
+    private string _newName = "";
+    private bool _processing;
+
+    protected override void OnParametersSet()
+    {
+        _newName = $"{SourceName} (bản sao)";
+    }
+
+    private async Task Submit()
+    {
+        if (string.IsNullOrWhiteSpace(_newName)) return;
+
+        _processing = true;
+        try
+        {
+            var newId = await Mediator.Send(new CloneTemplateCommand(SourceId, _newName));
+            Snackbar.Add("Nhân bản mẫu thành công!", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(newId));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Lỗi: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

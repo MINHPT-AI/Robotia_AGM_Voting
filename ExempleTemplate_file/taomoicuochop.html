@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+
+<html lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Tạo / Sửa cuộc họp</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "primary-container": "#1275bc",
+                      "surface-tint": "#0062a1",
+                      "on-tertiary-container": "#f9f6f6",
+                      "tertiary-fixed-dim": "#c8c6c6",
+                      "on-surface": "#191c1e",
+                      "secondary-container": "#dedfe6",
+                      "primary": "#005c97",
+                      "background": "#f8f9fb",
+                      "primary-fixed-dim": "#9ccaff",
+                      "on-primary-fixed": "#001d35",
+                      "on-primary": "#ffffff",
+                      "primary-fixed": "#d0e4ff",
+                      "on-error": "#ffffff",
+                      "tertiary": "#595858",
+                      "on-tertiary": "#ffffff",
+                      "on-surface-variant": "#404751",
+                      "on-secondary-fixed": "#191c21",
+                      "error": "#ba1a1a",
+                      "inverse-surface": "#2d3133",
+                      "on-secondary-container": "#606369",
+                      "error-container": "#ffdad6",
+                      "secondary-fixed-dim": "#c4c6cd",
+                      "on-primary-container": "#f3f7ff",
+                      "on-secondary": "#ffffff",
+                      "tertiary-container": "#727171",
+                      "on-background": "#191c1e",
+                      "on-tertiary-fixed-variant": "#474747",
+                      "surface-container-high": "#e6e8ea",
+                      "surface-bright": "#f8f9fb",
+                      "surface": "#f8f9fb",
+                      "inverse-on-surface": "#eff1f3",
+                      "surface-container": "#eceef0",
+                      "surface-dim": "#d8dadc",
+                      "outline": "#717882",
+                      "on-tertiary-fixed": "#1b1c1c",
+                      "surface-container-highest": "#e0e3e5",
+                      "secondary-fixed": "#e1e2e9",
+                      "outline-variant": "#c0c7d2",
+                      "surface-container-lowest": "#ffffff",
+                      "secondary": "#5c5e64",
+                      "on-primary-fixed-variant": "#00497a",
+                      "tertiary-fixed": "#e4e2e1",
+                      "inverse-primary": "#9ccaff",
+                      "on-secondary-fixed-variant": "#44474d",
+                      "on-error-container": "#93000a",
+                      "surface-variant": "#e0e3e5",
+                      "surface-container-low": "#f2f4f6"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {},
+              "fontFamily": {
+                      "headline": [
+                              "Manrope"
+                      ],
+                      "body": [
+                              "Manrope"
+                      ],
+                      "label": [
+                              "Inter"
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        .material-symbols-outlined {
+          font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .signature-gradient {
+            background: linear-gradient(135deg, #005c97 0%, #1275bc 100%);
+        }
+        .ghost-input {
+            background-color: rgba(224, 227, 229, 0.4); /* surface-container-highest at 40% */
+            border: none;
+            border-bottom: 2px solid transparent;
+            transition: border-color 0.2s;
+        }
+        .ghost-input:focus {
+            outline: none;
+            box-shadow: none;
+            border-bottom-color: #005c97; /* primary */
+        }
+        .ghost-border {
+            border: 1px solid rgba(192, 199, 210, 0.2); /* outline-variant at 20% */
+        }
+        .ambient-shadow {
+            box-shadow: 0 20px 40px rgba(25, 28, 30, 0.06);
+        }
+      </style>
+</head>
+<body class="bg-background text-on-surface font-body min-h-screen flex">
+<!-- SideNavBar -->
+<nav class="h-screen w-64 fixed left-0 top-0 z-40 bg-[#f2f4f6] dark:bg-slate-900 flex flex-col py-6 pr-4 shadow-[none]">
+<div class="px-6 mb-8">
+<h1 class="font-['Manrope'] font-extrabold text-[#191c1e] dark:text-white text-2xl tracking-tighter">MMS Portal</h1>
+<p class="font-label text-sm text-on-surface-variant mt-1">Institutional Grade</p>
+</div>
+<div class="px-6 mb-6">
+<button class="w-full signature-gradient text-on-primary font-label text-sm font-semibold py-2.5 px-4 rounded-md shadow-[0_4px_14px_rgba(0,92,151,0.2)] hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                New Meeting
+            </button>
+</div>
+<ul class="flex-1 flex flex-col gap-1 px-2">
+<li>
+<a class="flex items-center gap-3 px-4 py-2.5 text-slate-600 dark:text-slate-400 hover:translate-x-1 transition-transform font-['Inter'] text-sm font-medium tracking-wide" href="#">
+<span class="material-symbols-outlined text-[20px]">dashboard</span>
+                    Dashboard
+                </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-2.5 text-[#1275BC] dark:text-blue-300 bg-white dark:bg-slate-800 rounded-r-full font-bold shadow-sm font-['Inter'] text-sm tracking-wide" href="#">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">event_upcoming</span>
+                    Meetings
+                </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-2.5 text-slate-600 dark:text-slate-400 hover:translate-x-1 transition-transform font-['Inter'] text-sm font-medium tracking-wide" href="#">
+<span class="material-symbols-outlined text-[20px]">groups</span>
+                    Shareholders
+                </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-2.5 text-slate-600 dark:text-slate-400 hover:translate-x-1 transition-transform font-['Inter'] text-sm font-medium tracking-wide" href="#">
+<span class="material-symbols-outlined text-[20px]">description</span>
+                    Resolutions
+                </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-2.5 text-slate-600 dark:text-slate-400 hover:translate-x-1 transition-transform font-['Inter'] text-sm font-medium tracking-wide" href="#">
+<span class="material-symbols-outlined text-[20px]">how_to_vote</span>
+                    Voting
+                </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-2.5 text-slate-600 dark:text-slate-400 hover:translate-x-1 transition-transform font-['Inter'] text-sm font-medium tracking-wide" href="#">
+<span class="material-symbols-outlined text-[20px]">history_edu</span>
+                    Audit Log
+                </a>
+</li>
+</ul>
+<div class="mt-auto px-2">
+<ul class="flex flex-col gap-1">
+<li>
+<a class="flex items-center gap-3 px-4 py-2.5 text-slate-600 dark:text-slate-400 hover:translate-x-1 transition-transform font-['Inter'] text-sm font-medium tracking-wide" href="#">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+                        Settings
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-2.5 text-slate-600 dark:text-slate-400 hover:translate-x-1 transition-transform font-['Inter'] text-sm font-medium tracking-wide" href="#">
+<span class="material-symbols-outlined text-[20px]">contact_support</span>
+                        Support
+                    </a>
+</li>
+</ul>
+</div>
+</nav>
+<!-- Main Content -->
+<main class="ml-64 flex-1 flex flex-col min-h-screen bg-surface">
+<!-- TopAppBar -->
+<header class="bg-[#f8f9fb]/80 dark:bg-slate-950/80 backdrop-blur-xl docked full-width top-0 sticky z-30 bg-[#f2f4f6] dark:bg-slate-900 tonal-shift-bottom">
+<div class="flex justify-between items-center w-full px-8 py-4 max-w-[1920px] mx-auto">
+<div class="flex items-center gap-4">
+<div class="text-sm font-label text-on-surface-variant flex items-center gap-2">
+<span>Quản lý cuộc họp</span>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+<span class="text-primary font-medium">Tạo mới</span>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-4">
+<button class="text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-300 p-2 rounded-full">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-300 p-2 rounded-full">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+</div>
+<div class="h-8 w-8 rounded-full bg-primary-container text-on-primary flex items-center justify-center font-bold text-sm">
+                        AD
+                    </div>
+</div>
+</div>
+</header>
+<div class="p-8 max-w-[1200px] w-full mx-auto flex-1 flex flex-col gap-8">
+<!-- Page Header -->
+<div class="flex items-baseline justify-between mb-4">
+<h2 class="font-headline text-3xl font-bold tracking-tight text-on-surface">TẠO / SỬA CUỘC HỌP</h2>
+</div>
+<!-- Main Form Card -->
+<div class="bg-surface-container-lowest rounded-lg p-8 ambient-shadow relative overflow-hidden">
+<div class="absolute top-0 left-0 bottom-0 w-[2px] bg-surface-tint"></div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+<!-- Row 1 -->
+<div class="col-span-1 md:col-span-2">
+<label class="block font-label text-sm font-semibold text-on-surface mb-2">Tên cuộc họp <span class="text-error">*</span></label>
+<input class="w-full ghost-input px-4 py-3 rounded-t-md text-on-surface font-label text-base" placeholder="Nhập tên cuộc họp" type="text"/>
+</div>
+<!-- Row 2 -->
+<div>
+<label class="block font-label text-sm font-semibold text-on-surface mb-2">Loại cuộc họp <span class="text-error">*</span></label>
+<div class="relative">
+<select class="w-full ghost-input px-4 py-3 rounded-t-md text-on-surface font-label text-base appearance-none">
+<option>Đại hội đồng cổ đông thường niên</option>
+<option>Đại hội đồng cổ đông bất thường</option>
+</select>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none">expand_more</span>
+</div>
+</div>
+<div>
+<label class="block font-label text-sm font-semibold text-on-surface mb-2">Địa điểm <span class="text-error">*</span></label>
+<input class="w-full ghost-input px-4 py-3 rounded-t-md text-on-surface font-label text-base" placeholder="Nhập địa điểm" type="text"/>
+</div>
+<!-- Row 3 -->
+<div class="grid grid-cols-2 gap-4">
+<div>
+<label class="block font-label text-sm font-semibold text-on-surface mb-2">Ngày họp <span class="text-error">*</span></label>
+<div class="relative">
+<input class="w-full ghost-input px-4 py-3 rounded-t-md text-on-surface font-label text-base" type="date"/>
+</div>
+</div>
+<div>
+<label class="block font-label text-sm font-semibold text-on-surface mb-2">Giờ bắt đầu <span class="text-error">*</span></label>
+<div class="relative">
+<input class="w-full ghost-input px-4 py-3 rounded-t-md text-on-surface font-label text-base" type="time"/>
+</div>
+</div>
+</div>
+<div>
+<label class="block font-label text-sm font-semibold text-on-surface mb-2">Ngày chốt DS cổ đông <span class="text-error">*</span></label>
+<div class="relative">
+<input class="w-full ghost-input px-4 py-3 rounded-t-md text-on-surface font-label text-base" type="date"/>
+</div>
+</div>
+<!-- Row 4 -->
+<div>
+<label class="block font-label text-sm font-semibold text-on-surface mb-2">Tổng CP có quyền biểu quyết <span class="text-error">*</span></label>
+<input class="w-full ghost-input px-4 py-3 rounded-t-md text-on-surface font-label text-base" type="number" value="10000000"/>
+</div>
+<div>
+<div class="grid grid-cols-2 gap-4">
+<div>
+<label class="block font-label text-sm font-semibold text-on-surface mb-2">Chủ tọa</label>
+<input class="w-full ghost-input px-4 py-3 rounded-t-md text-on-surface font-label text-base" placeholder="Nhập tên chủ tọa" type="text"/>
+</div>
+<div>
+<label class="block font-label text-sm font-semibold text-on-surface mb-2">Thư ký</label>
+<input class="w-full ghost-input px-4 py-3 rounded-t-md text-on-surface font-label text-base" placeholder="Nhập tên thư ký" type="text"/>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Grids Section: Bento Style -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+<!-- Tờ trình biểu quyết -->
+<div class="bg-surface-container-lowest rounded-lg p-6 ambient-shadow flex flex-col">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-headline text-lg font-bold text-on-surface">Tờ trình biểu quyết</h3>
+<button class="text-primary hover:bg-surface-container-low p-2 rounded-full transition-colors">
+<span class="material-symbols-outlined">add_circle</span>
+</button>
+</div>
+<div class="flex-1 overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b-[1px] border-surface-container-high">
+<th class="py-3 px-4 font-label text-xs text-on-surface-variant font-medium w-16">STT</th>
+<th class="py-3 px-4 font-label text-xs text-on-surface-variant font-medium">Nội dung tờ trình</th>
+<th class="py-3 px-4 font-label text-xs text-on-surface-variant font-medium w-32">Thao tác</th>
+</tr>
+</thead>
+<tbody>
+<!-- Empty state or single row to show structure without lines -->
+<tr class="bg-surface hover:bg-surface-container-low transition-colors rounded-md">
+<td class="py-4 px-4 font-label text-sm text-on-surface">1</td>
+<td class="py-4 px-4 font-label text-sm text-on-surface">Tờ trình thông qua báo cáo tài chính năm 2023</td>
+<td class="py-4 px-4">
+<div class="flex gap-2 text-on-surface-variant">
+<button class="hover:text-primary"><span class="material-symbols-outlined text-[18px]">edit</span></button>
+<button class="hover:text-error"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="mt-4 flex items-center justify-center p-4 border border-dashed border-outline-variant rounded-md bg-surface-container-low/50">
+<span class="text-sm font-label text-on-surface-variant">Chưa có tờ trình nào. Bấm + để thêm.</span>
+</div>
+</div>
+</div>
+<!-- Danh sách ứng viên bầu cử -->
+<div class="flex flex-col gap-8">
+<!-- Danh sách ứng viên bầu HĐQT -->
+<div class="bg-surface-container-lowest rounded-lg p-6 ambient-shadow flex flex-col">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-headline text-lg font-bold text-on-surface">Danh sách ứng viên bầu HĐQT</h3>
+<button class="text-primary hover:bg-surface-container-low p-2 rounded-full transition-colors">
+<span class="material-symbols-outlined">add_circle</span>
+</button>
+</div>
+<div class="flex-1 overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b-[1px] border-surface-container-high">
+<th class="py-3 px-4 font-label text-xs text-on-surface-variant font-medium w-16">STT</th>
+<th class="py-3 px-4 font-label text-xs text-on-surface-variant font-medium">Họ và tên ứng viên</th>
+<th class="py-3 px-4 font-label text-xs text-on-surface-variant font-medium">Chức vụ hiện tại</th>
+<th class="py-3 px-4 font-label text-xs text-on-surface-variant font-medium w-32">Thao tác</th>
+</tr>
+</thead>
+<tbody>
+<!-- Empty state -->
+</tbody>
+</table>
+<div class="mt-4 flex items-center justify-center p-4 border border-dashed border-outline-variant rounded-md bg-surface-container-low/50">
+<span class="text-sm font-label text-on-surface-variant">Chưa có ứng viên nào. Bấm + để thêm.</span>
+</div>
+</div>
+</div>
+<!-- Danh sách ứng viên bầu BKS -->
+<div class="bg-surface-container-lowest rounded-lg p-6 ambient-shadow flex flex-col">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-headline text-lg font-bold text-on-surface">Danh sách ứng viên bầu BKS</h3>
+<button class="text-primary hover:bg-surface-container-low p-2 rounded-full transition-colors">
+<span class="material-symbols-outlined">add_circle</span>
+</button>
+</div>
+<div class="flex-1 overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b-[1px] border-surface-container-high">
+<th class="py-3 px-4 font-label text-xs text-on-surface-variant font-medium w-16">STT</th>
+<th class="py-3 px-4 font-label text-xs text-on-surface-variant font-medium">Họ và tên ứng viên</th>
+<th class="py-3 px-4 font-label text-xs text-on-surface-variant font-medium">Chức vụ hiện tại</th>
+<th class="py-3 px-4 font-label text-xs text-on-surface-variant font-medium w-32">Thao tác</th>
+</tr>
+</thead>
+<tbody>
+<!-- Empty state -->
+</tbody>
+</table>
+<div class="mt-4 flex items-center justify-center p-4 border border-dashed border-outline-variant rounded-md bg-surface-container-low/50">
+<span class="text-sm font-label text-on-surface-variant">Chưa có ứng viên nào. Bấm + để thêm.</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Ghi chú -->
+<div class="bg-surface-container-lowest rounded-lg p-6 ambient-shadow">
+<label class="block font-headline text-lg font-bold text-on-surface mb-4">Ghi chú</label>
+<textarea class="w-full ghost-input px-4 py-3 rounded-t-md text-on-surface font-label text-base min-h-[120px] resize-y" placeholder="Nhập nội dung ghi chú..."></textarea>
+</div>
+<!-- Footer Actions -->
+<div class="flex justify-end gap-4 mt-4 pb-12">
+<button class="px-6 py-2.5 rounded-md font-label text-sm font-semibold text-primary ghost-border hover:bg-surface-container-high/10 transition-colors">
+                    Hủy
+                </button>
+<button class="signature-gradient px-8 py-2.5 rounded-md font-label text-sm font-semibold text-on-primary shadow-[0_4px_14px_rgba(0,92,151,0.2)] hover:opacity-90 transition-opacity">
+                    Lưu
+                </button>
+</div>
+</div>
+</main>
+</body></html>

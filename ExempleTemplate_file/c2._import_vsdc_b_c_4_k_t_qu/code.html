@@ -1,0 +1,303 @@
+<!DOCTYPE html><html class="light" lang="vi"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Shareholder Import Wizard - Kết quả</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-high": "#e6e8ea",
+                        "primary-fixed": "#d0e4ff",
+                        "on-secondary-fixed": "#191c21",
+                        "on-primary-fixed-variant": "#00497a",
+                        "tertiary": "#595858",
+                        "outline-variant": "#c0c7d2",
+                        "surface-container": "#eceef0",
+                        "on-surface": "#191c1e",
+                        "surface-container-highest": "#e0e3e5",
+                        "on-tertiary-fixed-variant": "#474747",
+                        "tertiary-fixed": "#e4e2e1",
+                        "inverse-on-surface": "#eff1f3",
+                        "tertiary-fixed-dim": "#c8c6c6",
+                        "on-primary-fixed": "#001d35",
+                        "on-tertiary-container": "#f9f6f6",
+                        "on-surface-variant": "#404751",
+                        "on-background": "#191c1e",
+                        "on-tertiary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "on-secondary-fixed-variant": "#44474d",
+                        "inverse-primary": "#9ccaff",
+                        "background": "#f8f9fb",
+                        "inverse-surface": "#2d3133",
+                        "surface": "#f8f9fb",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-fixed-dim": "#9ccaff",
+                        "primary": "#005c97",
+                        "secondary-fixed-dim": "#c4c6cd",
+                        "secondary": "#5c5e64",
+                        "secondary-fixed": "#e1e2e9",
+                        "outline": "#717882",
+                        "on-secondary-container": "#606369",
+                        "on-error": "#ffffff",
+                        "surface-dim": "#d8dadc",
+                        "primary-container": "#1275bc",
+                        "error-container": "#ffdad6",
+                        "secondary-container": "#dedfe6",
+                        "surface-container-low": "#f2f4f6",
+                        "on-primary-container": "#f3f7ff",
+                        "on-primary": "#ffffff",
+                        "surface-bright": "#f8f9fb",
+                        "on-error-container": "#93000a",
+                        "surface-tint": "#0062a1",
+                        "on-tertiary-fixed": "#1b1c1c",
+                        "tertiary-container": "#727171",
+                        "surface-variant": "#e0e3e5",
+                        "on-secondary": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Manrope"],
+                        "label": ["Inter"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Manrope', sans-serif; }
+        .font-label { font-family: 'Inter', sans-serif; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .signature-gradient {
+            background: linear-gradient(135deg, #005c97 0%, #1275bc 100%);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen flex antialiased">
+<nav class="fixed left-0 top-0 h-full w-64 z-50 bg-[#f2f4f6] dark:bg-slate-900 shadow-[inset_-1px_0_0_0_rgba(0,0,0,0.05)] flex flex-col py-6">
+<div class="px-6 mb-8 flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg signature-gradient flex items-center justify-center text-on-primary font-bold shadow-lg" style="">M</div>
+<div>
+<h1 class="text-lg font-black text-slate-900 dark:text-white tracking-tighter" style="">MMS Portal</h1>
+<p class="text-xs text-slate-500 font-label" style="">Institutional Data</p>
+</div>
+</div>
+<div class="px-4 mb-6">
+<button class="w-full signature-gradient text-on-primary py-2.5 px-4 rounded-md font-semibold text-sm shadow-md hover:opacity-90 transition-opacity flex items-center justify-center gap-2" style="">
+<span class="material-symbols-outlined text-sm" style="">add</span>
+                New Import
+            </button>
+</div>
+<ul class="flex-1 space-y-1 mt-4">
+<li class="" style="">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors font-['Manrope'] tracking-tight font-medium hover:bg-[#e0e3e5] dark:hover:bg-slate-800/80 transition-all duration-200 scale-100 active:scale-[0.98]" href="#" style="">
+<span class="material-symbols-outlined" style="">dashboard</span>
+<span class="" style="">Dashboard</span>
+</a>
+</li>
+<li class="" style="">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors font-['Manrope'] tracking-tight font-medium hover:bg-[#e0e3e5] dark:hover:bg-slate-800/80 transition-all duration-200 scale-100 active:scale-[0.98]" href="#" style="">
+<span class="material-symbols-outlined" style="">groups</span>
+<span class="" style="">Shareholders</span>
+</a>
+</li>
+<li class="" style="">
+<a class="flex items-center gap-3 px-4 py-3 text-[#1275BC] dark:text-blue-400 font-bold bg-[#ffffff] dark:bg-slate-800/50 rounded-l-none border-l-4 border-[#1275BC] font-['Manrope'] tracking-tight hover:bg-[#e0e3e5] dark:hover:bg-slate-800/80 transition-all duration-200 scale-100 active:scale-[0.98]" href="#" style="">
+<span class="material-symbols-outlined" style="font-variation-settings: &quot;FILL&quot; 1;">history</span>
+<span class="" style="">Import Logs</span>
+</a>
+</li>
+<li class="" style="">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors font-['Manrope'] tracking-tight font-medium hover:bg-[#e0e3e5] dark:hover:bg-slate-800/80 transition-all duration-200 scale-100 active:scale-[0.98]" href="#" style="">
+<span class="material-symbols-outlined" style="">analytics</span>
+<span class="" style="">Reports</span>
+</a>
+</li>
+</ul>
+<div class="mt-auto px-4 space-y-1">
+<a class="flex items-center gap-3 px-4 py-2 text-sm text-slate-500 hover:text-slate-900 transition-colors font-medium hover:bg-[#e0e3e5] rounded-md" href="#" style="">
+<span class="material-symbols-outlined text-[20px]" style="">settings</span>
+<span class="" style="">Settings</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-sm text-slate-500 hover:text-slate-900 transition-colors font-medium hover:bg-[#e0e3e5] rounded-md" href="#" style="">
+<span class="material-symbols-outlined text-[20px]" style="">help_outline</span>
+<span class="" style="">Support</span>
+</a>
+</div>
+</nav>
+<main class="flex-1 ml-64 flex flex-col min-h-screen">
+<header class="fixed top-0 right-0 left-64 h-16 z-40 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl shadow-[0_1px_0_0_rgba(0,0,0,0.05)] flex justify-between items-center px-8">
+<div class="flex items-center gap-8">
+<span class="text-base font-bold text-slate-800 dark:text-slate-100" style="">Shareholder Import Wizard</span>
+<nav class="hidden md:flex items-center gap-6">
+<a class="font-['Manrope'] text-sm tracking-normal text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:opacity-80 transition-opacity" href="#" style="">Import Status</a>
+<a class="font-['Manrope'] text-sm tracking-normal text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:opacity-80 transition-opacity" href="#" style="">Data Mapping</a>
+<a class="font-['Manrope'] text-sm tracking-normal text-[#1275BC] dark:text-blue-400 font-semibold border-b-2 border-[#1275BC] pb-1 hover:opacity-80 transition-opacity" href="#" style="">Review</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-slate-500 hover:text-slate-800 transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100" style="">
+<span class="material-symbols-outlined" style="">notifications</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-slate-200 overflow-hidden border border-outline-variant/20">
+<img alt="User profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBNqZrG4kpgJ97oToQiE79XjET4hQbY910XJILCOyynvSjpd51czOK4PH9QxlcwF_Er1WvU0FwJXpU5ssBGcaPq2nVnCQWq1_UgaST9mdvtnAiAzB_-QHbl_rmHZeJ4I2CFiap86xbWS8A5LJuhBzEP0DvCQgqX-9YZF4kjI8xt0My7aPbNAVAR0WVteFgzBUhEIpfIKWxcb6ZgbnXo16ita6Ssj2YFwUpr9JzUitdpKrtPziCel0Wvara_xyqXouFv6zRYfO9mUKo" style="">
+</div>
+</div>
+</header>
+<div class="flex-1 pt-24 px-8 pb-12 overflow-y-auto">
+<div class="max-w-5xl mx-auto mb-10">
+<div class="flex items-center justify-between mb-8">
+<div>
+<h2 class="text-2xl font-bold tracking-tight text-on-surface mb-1" style="">Kết quả Import</h2>
+<p class="text-sm font-label text-on-surface-variant" style="">Quy trình nhập dữ liệu cổ đông từ VSDC đã hoàn tất.</p>
+</div>
+</div>
+<div class="relative flex items-center justify-between w-full max-w-3xl">
+<div class="absolute left-0 top-1/2 -translate-y-1/2 w-full h-0.5 bg-surface-variant z-0"></div>
+<div class="absolute left-0 top-1/2 -translate-y-1/2 w-full h-0.5 bg-primary z-0"></div>
+<div class="relative z-10 flex flex-col items-center gap-2">
+<div class="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-sm" style="">check</span>
+</div>
+<span class="text-xs font-label text-on-surface-variant font-medium" style="">Tải lên</span>
+</div>
+<div class="relative z-10 flex flex-col items-center gap-2">
+<div class="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-sm" style="">check</span>
+</div>
+<span class="text-xs font-label text-on-surface-variant font-medium" style="">Xác thực</span>
+</div>
+<div class="relative z-10 flex flex-col items-center gap-2">
+<div class="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-sm" style="">check</span>
+</div>
+<span class="text-xs font-label text-on-surface-variant font-medium" style="">Xử lý</span>
+</div>
+<div class="relative z-10 flex flex-col items-center gap-2">
+<div class="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center ring-4 ring-primary-fixed shadow-sm">
+<span class="font-bold text-sm" style="">4</span>
+</div>
+<span class="text-xs font-label text-primary font-bold" style="">Kết quả</span>
+</div>
+</div>
+</div>
+<div class="max-w-5xl mx-auto flex flex-col items-center">
+<div class="w-full bg-surface-container-lowest rounded-xl p-12 flex flex-col items-center text-center shadow-[0_20px_40px_rgba(25,28,30,0.03)] border border-outline-variant/10 mb-8 relative overflow-hidden">
+<div class="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 bg-primary-fixed rounded-full blur-[80px] opacity-30 pointer-events-none"></div>
+<div class="w-20 h-20 rounded-full bg-primary-fixed flex items-center justify-center mb-6 text-primary z-10">
+<span class="material-symbols-outlined text-4xl" style="font-variation-settings: &quot;FILL&quot; 1;">check_circle</span>
+</div>
+<h3 class="text-2xl font-bold tracking-tight text-on-surface mb-2 z-10" style="">Import Thành Công</h3>
+<p class="text-sm font-label text-on-surface-variant max-w-md z-10" style="">Dữ liệu danh sách cổ đông đã được cập nhật vào hệ thống. Các thay đổi sẽ được phản ánh trên các báo cáo liên quan.</p>
+</div>
+<div class="w-full space-y-6 mb-10">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="bg-surface-container-lowest rounded-lg p-6 flex flex-col shadow-[0_8px_16px_rgba(25,28,30,0.02)] border-t-4 border-primary relative overflow-hidden md:col-span-1">
+<span class="text-xs font-label text-on-surface-variant uppercase tracking-wider mb-2" style="">Tổng dòng đọc</span>
+<div class="flex items-baseline gap-3">
+<div class="text-4xl font-bold tracking-tight text-on-surface" style="">1,200</div>
+<div class="flex items-center gap-1 bg-error-container text-error px-2 py-0.5 rounded text-xs font-bold" style="">
+<span class="material-symbols-outlined text-xs" style="">warning</span>
+                                Bỏ qua (Lỗi): 5
+                            </div>
+</div>
+</div>
+<div class="bg-surface-container-lowest rounded-lg p-6 flex flex-col shadow-[0_8px_16px_rgba(25,28,30,0.02)] border-t-4 border-green-600">
+<span class="text-xs font-label text-on-surface-variant uppercase tracking-wider mb-2" style="">Import thành công</span>
+<div class="text-4xl font-bold tracking-tight text-on-surface" style="">1,195</div>
+</div>
+<div class="bg-surface-container-lowest rounded-lg p-6 flex flex-col shadow-[0_8px_16px_rgba(25,28,30,0.02)] border-t-4 border-surface-tint">
+<span class="text-xs font-label text-on-surface-variant uppercase tracking-wider mb-2" style="">Tổng số CP</span>
+<div class="text-4xl font-bold tracking-tight text-primary" style="">150.000.000</div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="bg-surface-container-lowest rounded-lg p-8 shadow-[0_8px_16px_rgba(25,28,30,0.02)] border border-outline-variant/10">
+<div class="flex items-center gap-3 mb-6">
+<div class="p-2 bg-primary-fixed rounded-lg text-primary">
+<span class="material-symbols-outlined" style="">person</span>
+</div>
+<div>
+<span class="text-xs font-label text-on-surface-variant uppercase tracking-wider block" style="">Loại hình</span>
+<h4 class="text-xl font-bold text-on-surface" style="">Cổ đông cá nhân</h4>
+</div>
+<div class="ml-auto text-3xl font-bold text-on-surface" style="">1,150</div>
+</div>
+<div class="grid grid-cols-2 gap-4 pt-4 border-t border-outline-variant/20">
+<div class="pl-4 border-l-2 border-primary/20">
+<span class="text-xs font-label text-on-surface-variant block mb-1" style="">Trong nước (SL)</span>
+<span class="text-lg font-bold text-on-surface" style="">1,120</span>
+</div>
+<div class="pl-4 border-l-2 border-primary/20">
+<span class="text-xs font-label text-on-surface-variant block mb-1" style="">Nước ngoài (SL)</span>
+<span class="text-lg font-bold text-on-surface" style="">30</span>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-lowest rounded-lg p-8 shadow-[0_8px_16px_rgba(25,28,30,0.02)] border border-outline-variant/10">
+<div class="flex items-center gap-3 mb-6">
+<div class="p-2 bg-secondary-fixed rounded-lg text-secondary">
+<span class="material-symbols-outlined" style="">corporate_fare</span>
+</div>
+<div>
+<span class="text-xs font-label text-on-surface-variant uppercase tracking-wider block" style="">Loại hình</span>
+<h4 class="text-xl font-bold text-on-surface" style="">Cổ đông tổ chức</h4>
+</div>
+<div class="ml-auto text-3xl font-bold text-on-surface" style="">45</div>
+</div>
+<div class="grid grid-cols-2 gap-4 pt-4 border-t border-outline-variant/20">
+<div class="pl-4 border-l-2 border-secondary/20">
+<span class="text-xs font-label text-on-surface-variant block mb-1" style="">Trong nước (SL)</span>
+<span class="text-lg font-bold text-on-surface" style="">40</span>
+</div>
+<div class="pl-4 border-l-2 border-secondary/20">
+<span class="text-xs font-label text-on-surface-variant block mb-1" style="">Nước ngoài (SL)</span>
+<span class="text-lg font-bold text-on-surface" style="">5</span>
+</div>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="bg-surface-container-lowest rounded-lg p-6 shadow-[0_8px_16px_rgba(25,28,30,0.02)] border border-outline-variant/10 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant" style="">person_add</span>
+<span class="text-sm font-semibold text-on-surface" style="">Tổng số CP CĐ Cá nhân</span>
+</div>
+<span class="text-xl font-bold text-on-surface" style="">24,150,000</span>
+</div>
+<div class="bg-surface-container-lowest rounded-lg p-6 shadow-[0_8px_16px_rgba(25,28,30,0.02)] border border-outline-variant/10 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant" style="">update</span>
+<span class="text-sm font-semibold text-on-surface" style="">Tổng số CP&nbsp; CĐ Tổ chức</span>
+</div>
+<span class="text-xl font-bold text-on-surface" style="">125,850,000</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="px-6 py-2.5 rounded-md border border-outline-variant/20 text-primary font-semibold text-sm hover:bg-surface-container-high transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20" style="">
+                        Xem danh sách
+                    </button>
+<button class="px-6 py-2.5 rounded-md signature-gradient text-on-primary font-semibold text-sm shadow-md hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-primary/20 flex items-center gap-2" style="">
+<span class="material-symbols-outlined text-sm" style="">description</span>Export
+                    </button>
+</div>
+</div>
+</div>
+</main>
+
+</body></html>

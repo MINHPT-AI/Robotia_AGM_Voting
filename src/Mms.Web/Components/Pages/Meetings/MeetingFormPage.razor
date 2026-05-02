@@ -1,0 +1,221 @@
+@page "/meetings/new"
+@page "/meetings/{Id:guid}/edit"
+@attribute [Authorize(Roles = "admin,operator")]
+@using Mms.Web.Components.Pages.Meetings.Components
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>@(_isNew ? "Tạo cuộc họp" : "Sửa cuộc họp") — MMS</PageTitle>
+
+<div class="d-flex align-center mb-4">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="/meetings" />
+    <MudText Typo="Typo.h5" Style="color:#1275BC;font-weight:700">
+        @(_isNew ? "Tạo cuộc họp mới" : "Chỉnh sửa cuộc họp")
+    </MudText>
+</div>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+}
+else
+{
+    <EditForm Model="_form" OnValidSubmit="HandleSave" FormName="MeetingForm">
+        <DataAnnotationsValidator />
+
+        @* ── Card thông tin chính ── *@
+        <MudCard Elevation="2" Class="mb-4">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.subtitle1" Style="font-weight:600">Thông tin cuộc họp</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudGrid>
+                    <MudItem xs="12" md="8">
+                        <MudTextField @bind-Value="_form.Title" Label="Tên cuộc họp *"
+                                      Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudSelect @bind-Value="_form.MeetingType" Label="Loại cuộc họp *"
+                                   Variant="Variant.Outlined">
+                            <MudSelectItem Value="MeetingType.Annual">ĐHCĐ Thường niên</MudSelectItem>
+                            <MudSelectItem Value="MeetingType.Extraordinary">ĐHCĐ Bất thường</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_form.Location" Label="Địa điểm tổ chức *"
+                                      Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudDatePicker @bind-Date="_meetingDate" Label="Ngày họp *"
+                                       Variant="Variant.Outlined"
+                                       DateFormat="dd/MM/yyyy" />
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudDatePicker @bind-Date="_recordDate" Label="Ngày chốt DS cổ đông *"
+                                       Variant="Variant.Outlined"
+                                       DateFormat="dd/MM/yyyy" />
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudNumericField @bind-Value="_form.TotalVotingShares"
+                                         Label="Tổng cổ phần biểu quyết *"
+                                         Variant="Variant.Outlined" Format="N0" />
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudTextField @bind-Value="_form.Chairman" Label="Chủ tọa"
+                                      Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudTextField @bind-Value="_form.Secretary" Label="Thư ký"
+                                      Variant="Variant.Outlined" />
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+
+        @* ── Sub-grids Bento Layout ── *@
+        <MudGrid Class="mb-4">
+            <MudItem xs="12" md="6">
+                <ResolutionsGrid @bind-Items="_resolutions" />
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudStack Spacing="3">
+                    <CandidatesGrid Position="HĐQT" @bind-Items="_candidatesHdqt" />
+                    <CandidatesGrid Position="BKS" @bind-Items="_candidatesBks" />
+                </MudStack>
+            </MudItem>
+        </MudGrid>
+
+        @* ── Ghi chú ── *@
+        <MudCard Elevation="2" Class="mb-6">
+            <MudCardContent>
+                <MudTextField @bind-Value="_form.Notes" Label="Ghi chú"
+                              Variant="Variant.Outlined" Lines="3" />
+            </MudCardContent>
+        </MudCard>
+
+        <div class="d-flex justify-end gap-3 mb-6">
+            <MudButton Variant="Variant.Outlined" Href="/meetings" Disabled="_saving">Hủy</MudButton>
+            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled"
+                       Color="Color.Primary" Disabled="_saving">
+                @(_saving ? "Đang lưu..." : "Lưu")
+            </MudButton>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private MeetingFormModel _form = new();
+    private List<ResolutionDto> _resolutions = [];
+    private List<CandidateDto> _candidatesHdqt = [];
+    private List<CandidateDto> _candidatesBks = [];
+    private DateTime? _meetingDate;
+    private DateTime? _recordDate;
+    private bool _loading = true;
+    private bool _saving = false;
+    private bool _isNew => Id is null;
+    private Guid _companyId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Guard: company must exist first
+        var company = await Mediator.Send(new GetCompanyQuery());
+        if (company?.Id is null)
+        {
+            Snackbar.Add("Vui lòng cấu hình thông tin công ty trước", Severity.Warning);
+            Nav.NavigateTo("/company");
+            return;
+        }
+        _companyId = company.Id.Value;
+
+        if (!_isNew)
+        {
+            var dto = await Mediator.Send(new GetMeetingByIdQuery(Id!.Value));
+            if (dto is null) { Nav.NavigateTo("/meetings"); return; }
+
+            _form = MeetingFormModel.FromDto(dto);
+            _meetingDate = dto.MeetingDate;
+            _recordDate = dto.RecordDate.ToDateTime(TimeOnly.MinValue);
+            _resolutions = dto.Resolutions.ToList();
+            _candidatesHdqt = dto.Candidates.Where(c => c.Position == "HĐQT").ToList();
+            _candidatesBks = dto.Candidates.Where(c => c.Position == "BKS").ToList();
+        }
+        else
+        {
+            _meetingDate = DateTime.Today;
+            _recordDate = DateTime.Today.AddDays(-10);
+            _form.MeetingDate = DateTime.Today;
+            _form.RecordDate = DateOnly.FromDateTime(DateTime.Today.AddDays(-10));
+        }
+        _loading = false;
+    }
+
+    private async Task HandleSave()
+    {
+        // Sync MudDatePicker values into form model
+        if (_meetingDate.HasValue) _form.MeetingDate = _meetingDate.Value;
+        if (_recordDate.HasValue) _form.RecordDate = DateOnly.FromDateTime(_recordDate.Value);
+
+        _saving = true;
+        try
+        {
+            var allCandidates = _candidatesHdqt.Concat(_candidatesBks).ToList();
+
+            if (_isNew)
+            {
+                await Mediator.Send(_form.ToCreateCommand(_companyId, _resolutions, allCandidates));
+                Snackbar.Add("Tạo cuộc họp thành công!", Severity.Success);
+            }
+            else
+            {
+                await Mediator.Send(_form.ToUpdateCommand(Id!.Value, _resolutions, allCandidates));
+                Snackbar.Add("Cập nhật thành công!", Severity.Success);
+            }
+            Nav.NavigateTo("/meetings");
+        }
+        catch (Mms.Application.Common.Exceptions.ValidationException ex)
+        {
+            Snackbar.Add(string.Join(" | ", ex.Errors.SelectMany(e => e.Value)), Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Lỗi: {ex.Message}", Severity.Error);
+        }
+        finally { _saving = false; }
+    }
+
+    public class MeetingFormModel
+    {
+        public string Title { get; set; } = string.Empty;
+        public MeetingType MeetingType { get; set; } = MeetingType.Annual;
+        public DateTime MeetingDate { get; set; } = DateTime.Today;
+        public string Location { get; set; } = string.Empty;
+        public DateOnly RecordDate { get; set; } = DateOnly.FromDateTime(DateTime.Today);
+        public long TotalVotingShares { get; set; }
+        public string? Chairman { get; set; }
+        public string? Secretary { get; set; }
+        public string? Notes { get; set; }
+
+        public static MeetingFormModel FromDto(MeetingDetailDto dto) => new()
+        {
+            Title = dto.Title, MeetingType = dto.MeetingType, MeetingDate = dto.MeetingDate,
+            Location = dto.Location, RecordDate = dto.RecordDate,
+            TotalVotingShares = dto.TotalVotingShares, Chairman = dto.Chairman,
+            Secretary = dto.Secretary, Notes = dto.Notes,
+        };
+
+        public CreateMeetingCommand ToCreateCommand(Guid companyId,
+            List<ResolutionDto> res, List<CandidateDto> cands) =>
+            new(companyId, Title, MeetingType, MeetingDate, Location, RecordDate,
+                TotalVotingShares, Chairman, Secretary, Notes, res, cands);
+
+        public UpdateMeetingCommand ToUpdateCommand(Guid id,
+            List<ResolutionDto> res, List<CandidateDto> cands) =>
+            new(id, Title, MeetingType, MeetingDate, Location, RecordDate,
+                TotalVotingShares, Chairman, Secretary, Notes, res, cands);
+    }
+}

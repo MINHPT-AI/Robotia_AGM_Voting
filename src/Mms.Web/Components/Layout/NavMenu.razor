@@ -1,0 +1,96 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+<MudNavMenu>
+    @* Dashboard — all roles *@
+    <MudNavLink Href="/" Match="NavLinkMatch.All"
+                Icon="@Icons.Material.Filled.Dashboard">
+        Dashboard
+    </MudNavLink>
+
+    @* admin + operator *@
+    <AuthorizeView Roles="admin,operator">
+        <Authorized>
+            <MudNavLink Href="/meetings"
+                        Icon="@Icons.Material.Filled.EventNote">
+                Cuộc họp
+            </MudNavLink>
+            <MudNavLink Href="/meetings"
+                        Icon="@Icons.Material.Filled.AssignmentInd">
+                Ủy quyền
+            </MudNavLink>
+        </Authorized>
+    </AuthorizeView>
+
+    @* admin only *@
+    <AuthorizeView Roles="admin">
+        <Authorized>
+            <MudNavLink Href="/company"
+                        Icon="@Icons.Material.Filled.Business">
+                Thông tin công ty
+            </MudNavLink>
+
+            <MudNavLink Href="/templates"
+                        Icon="@Icons.Material.Filled.Description">
+                Mẫu văn bản
+            </MudNavLink>
+        </Authorized>
+    </AuthorizeView>
+
+    @* admin + operator + checkin *@
+    <AuthorizeView Roles="admin,operator,checkin">
+        <Authorized>
+            <MudNavLink Href="/meetings"
+                        Icon="@Icons.Material.Filled.HowToReg">
+                Check-in
+            </MudNavLink>
+        </Authorized>
+    </AuthorizeView>
+
+    @* admin + operator *@
+    <AuthorizeView Roles="admin,operator">
+        <Authorized>
+            <MudNavLink Href="/meetings"
+                        Icon="@Icons.Material.Filled.HowToVote">
+                Kiểm phiếu
+            </MudNavLink>
+        </Authorized>
+    </AuthorizeView>
+
+    @* admin + operator + viewer *@
+    <AuthorizeView Roles="admin,operator,viewer">
+        <Authorized>
+            <MudNavLink Href="/reports"
+                        Icon="@Icons.Material.Filled.BarChart">
+                Báo cáo
+            </MudNavLink>
+        </Authorized>
+    </AuthorizeView>
+
+    @* admin only — admin group *@
+    <AuthorizeView Roles="admin">
+        <Authorized>
+            <MudNavGroup Title="Quản trị"
+                         Icon="@Icons.Material.Filled.AdminPanelSettings"
+                         Expanded="true">
+                <MudNavLink Href="/admin/users"
+                            Icon="@Icons.Material.Filled.People">
+                    Tài khoản
+                </MudNavLink>
+                <MudNavLink Href="/admin/audit-log"
+                            Icon="@Icons.Material.Filled.History">
+                    Audit Log
+                </MudNavLink>
+        </MudNavGroup>
+        </Authorized>
+    </AuthorizeView>
+
+    @* Tất cả user đã đăng nhập *@
+    <AuthorizeView>
+        <Authorized>
+            <MudNavLink Href="/account/profile"
+                        Icon="@Icons.Material.Filled.AccountCircle">
+                Hồ sơ của tôi
+            </MudNavLink>
+        </Authorized>
+    </AuthorizeView>
+</MudNavMenu>

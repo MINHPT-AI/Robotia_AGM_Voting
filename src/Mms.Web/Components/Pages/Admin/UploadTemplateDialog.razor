@@ -1,0 +1,165 @@
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        @* ── Part 1: File + Metadata ── *@
+        <MudFileUpload T="IBrowserFile" Accept=".docx"
+                       FilesChanged="OnFileSelected"
+                       MaximumFileCount="1">
+            <ActivatorContent>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.AttachFile" FullWidth="true">
+                    @(_selectedFile is null ? "Chọn file .docx" : _selectedFile.Name)
+                </MudButton>
+            </ActivatorContent>
+        </MudFileUpload>
+
+        @if (_selectedFile is not null)
+        {
+            <MudText Typo="Typo.caption" Class="mt-1 ml-1" Color="Color.Success">
+                📄 @_selectedFile.Name — @FormatFileSize(_selectedFile.Size)
+            </MudText>
+        }
+
+        <MudTextField @bind-Value="_name" Label="Tên mẫu" Required="true"
+                      MaxLength="200" Class="mt-3" Variant="Variant.Outlined" />
+
+        <MudSelect T="TemplateType" @bind-Value="_templateType" Label="Loại mẫu"
+                   Required="true" Class="mt-3" Variant="Variant.Outlined">
+            <MudSelectItem Value="TemplateType.Invitation">Thư mời họp</MudSelectItem>
+            <MudSelectItem Value="TemplateType.VotingCard">Thẻ biểu quyết</MudSelectItem>
+            <MudSelectItem Value="TemplateType.VotingBallot">Phiếu biểu quyết</MudSelectItem>
+            <MudSelectItem Value="TemplateType.ElectionHDQT">Phiếu bầu TVHĐQT</MudSelectItem>
+            <MudSelectItem Value="TemplateType.ElectionBKS">Phiếu bầu BKS</MudSelectItem>
+            <MudSelectItem Value="TemplateType.QuorumReport">BB Thẩm tra tư cách</MudSelectItem>
+            <MudSelectItem Value="TemplateType.TallyReport">BB Kiểm phiếu</MudSelectItem>
+        </MudSelect>
+
+        <MudSelect T="string" @bind-Value="_language" Label="Ngôn ngữ"
+                   Required="true" Class="mt-3" Variant="Variant.Outlined">
+            <MudSelectItem Value="@("VN")">Tiếng Việt</MudSelectItem>
+            <MudSelectItem Value="@("EN")">English</MudSelectItem>
+            <MudSelectItem Value="@("DUAL")">Song ngữ</MudSelectItem>
+        </MudSelect>
+
+        @* ── Part 2: Token checkbox list ── *@
+        <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2" Style="font-weight:600">
+            Chọn các token muốn sử dụng trong văn bản:
+        </MudText>
+        <MudPaper Outlined="true" Class="pa-3" Style="max-height:250px;overflow-y:auto;">
+            @foreach (var token in _allTokens)
+            {
+                var code = token.Code;
+                <MudCheckBox T="bool" Label="@($"{token.Code} — {token.Description}")"
+                             Value="@(_selectedCodes.Contains(code))"
+                             ValueChanged="@(v => ToggleToken(code, v))"
+                             Dense="true" Color="Color.Primary" />
+            }
+        </MudPaper>
+
+        @* ── Part 3: Signature & Seal toggle ── *@
+        <MudSwitch T="bool" @bind-Value="_useSignatureAndSeal"
+                   Label="Sử dụng chữ ký & con dấu (lấy từ Thông tin Công ty)"
+                   Color="Color.Primary" Class="mt-3" />
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3">@_errorMessage</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Huỷ</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   OnClick="Submit" Disabled="_uploading || _selectedFile is null">
+            @if (_uploading)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            Tải lên & Mở soạn thảo
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    private IBrowserFile? _selectedFile;
+    private string _name = "";
+    private TemplateType _templateType = TemplateType.Invitation;
+    private string _language = "VN";
+    private bool _useSignatureAndSeal;
+    private bool _uploading;
+    private string? _errorMessage;
+
+    private IList<TokenRegistry.TokenInfo> _allTokens = [];
+    private HashSet<string> _selectedCodes = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _allTokens = await Mediator.Send(new GetAllTokensQuery());
+        // Default: select first 6 common tokens
+        _selectedCodes = new HashSet<string> { "[1]", "[2]", "[3]", "[4]", "[5]", "[6]" };
+    }
+
+    private void OnFileSelected(IBrowserFile file)
+    {
+        _selectedFile = file;
+        _errorMessage = null;
+        if (!file.Name.EndsWith(".docx", StringComparison.OrdinalIgnoreCase))
+        {
+            _errorMessage = "Chỉ chấp nhận file .docx";
+            _selectedFile = null;
+        }
+    }
+
+    private void ToggleToken(string code, bool isChecked)
+    {
+        if (isChecked) _selectedCodes.Add(code);
+        else _selectedCodes.Remove(code);
+    }
+
+    private async Task Submit()
+    {
+        if (_selectedFile is null || string.IsNullOrWhiteSpace(_name))
+        {
+            _errorMessage = "Vui lòng chọn file và nhập tên mẫu";
+            return;
+        }
+
+        _uploading = true;
+        _errorMessage = null;
+
+        try
+        {
+            var maxSize = 20 * 1024 * 1024L;
+            await using var stream = _selectedFile.OpenReadStream(maxSize);
+
+            var result = await Mediator.Send(new UploadTemplateCommand(
+                stream, _selectedFile.Name,
+                _name, _templateType, _language,
+                _selectedCodes.ToList(),
+                _useSignatureAndSeal));
+
+            Snackbar.Add("Tải lên thành công! Đang mở trình soạn thảo...", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(result.Id));
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / (1024.0 * 1024.0):F1} MB";
+    }
+}

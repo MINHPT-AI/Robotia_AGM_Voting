@@ -1,0 +1,143 @@
+@page "/admin/audit-log"
+@attribute [Authorize(Roles = "admin")]
+@inject IMediator Mediator
+
+<PageTitle>Audit Log — MMS</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4" Style="color:#1275BC;font-weight:700">
+    Nhật ký hoạt động
+</MudText>
+
+@* ── Filter Bar ── *@
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" md="2">
+            <MudDatePicker @bind-Date="_dateFrom" Label="Từ ngày"
+                           Variant="Variant.Outlined" DateFormat="dd/MM/yyyy"
+                           Clearable="true" />
+        </MudItem>
+        <MudItem xs="12" md="2">
+            <MudDatePicker @bind-Date="_dateTo" Label="Đến ngày"
+                           Variant="Variant.Outlined" DateFormat="dd/MM/yyyy"
+                           Clearable="true" />
+        </MudItem>
+        <MudItem xs="12" md="2">
+            <MudTextField @bind-Value="_performedBy" Label="Người thực hiện"
+                          Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" md="2">
+            <MudSelect @bind-Value="_entityName" Label="Thực thể"
+                       Variant="Variant.Outlined" Clearable="true">
+                <MudSelectItem Value="@("Meeting")">Meeting</MudSelectItem>
+                <MudSelectItem Value="@("Company")">Company</MudSelectItem>
+                <MudSelectItem Value="@("Shareholder")">Shareholder</MudSelectItem>
+                <MudSelectItem Value="@("Auth")">Auth</MudSelectItem>
+                <MudSelectItem Value="@("System")">System</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" md="4" Class="d-flex align-end gap-2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Search"
+                       OnClick="ApplyFilter">
+                Lọc
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                       OnClick="ClearFilter">
+                Xoá lọc
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@* ── Data Grid ── *@
+<MudDataGrid @ref="_grid" T="AuditLogDto"
+             ServerData="LoadServerData"
+             Hover="true" Dense="true" Striped="true"
+             RowsPerPage="50">
+    <Columns>
+        <TemplateColumn Title="Thời gian" Sortable="false">
+            <CellTemplate>
+                @context.Item.CreatedAt.ToString("dd/MM/yyyy HH:mm:ss")
+            </CellTemplate>
+        </TemplateColumn>
+        <PropertyColumn Property="x => x.EntityName" Title="Thực thể" />
+        <TemplateColumn Title="ID đối tượng" Sortable="false">
+            <CellTemplate>
+                <MudText Typo="Typo.body2" Style="font-family:monospace;">
+                    @(context.Item.EntityId ?? "—")
+                </MudText>
+            </CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="Hành động" Sortable="false">
+            <CellTemplate>
+                <MudChip T="string" Size="Size.Small"
+                         Color="@GetActionColor(context.Item.Action)">
+                    @context.Item.Action
+                </MudChip>
+            </CellTemplate>
+        </TemplateColumn>
+        <PropertyColumn Property="x => x.PerformedBy" Title="Người thực hiện" />
+        <TemplateColumn Title="Chi tiết" Sortable="false">
+            <CellTemplate>
+                @{
+                    var detail = context.Item.Detail ?? "";
+                    var truncated = detail.Length > 80 ? detail[..80] + "…" : detail;
+                }
+                <MudTooltip Text="@detail" Placement="Placement.Left">
+                    <MudText Typo="Typo.body2">@truncated</MudText>
+                </MudTooltip>
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <PagerContent>
+        <MudDataGridPager T="AuditLogDto" />
+    </PagerContent>
+</MudDataGrid>
+
+@code {
+    private MudDataGrid<AuditLogDto>? _grid;
+
+    // Filter state
+    private DateTime? _dateFrom;
+    private DateTime? _dateTo;
+    private string? _performedBy;
+    private string? _entityName;
+
+    private async Task<GridData<AuditLogDto>> LoadServerData(GridState<AuditLogDto> state, CancellationToken ct)
+    {
+        var page = state.Page + 1;
+        var result = await Mediator.Send(new GetAuditLogsQuery(
+            page, state.PageSize,
+            _dateFrom.HasValue ? DateOnly.FromDateTime(_dateFrom.Value) : null,
+            _dateTo.HasValue ? DateOnly.FromDateTime(_dateTo.Value) : null,
+            _entityName, _performedBy));
+
+        return new GridData<AuditLogDto>
+        {
+            Items = result.Items,
+            TotalItems = result.TotalCount,
+        };
+    }
+
+    private static Color GetActionColor(string action) => action switch
+    {
+        "Meeting" or "Company" or "Shareholder" => Color.Info,
+        "Auth" => Color.Warning,
+        "System" => Color.Error,
+        _ => Color.Default,
+    };
+
+    private async Task ApplyFilter()
+    {
+        await _grid!.ReloadServerData();
+    }
+
+    private async Task ClearFilter()
+    {
+        _dateFrom = null;
+        _dateTo = null;
+        _performedBy = null;
+        _entityName = null;
+        await _grid!.ReloadServerData();
+    }
+}

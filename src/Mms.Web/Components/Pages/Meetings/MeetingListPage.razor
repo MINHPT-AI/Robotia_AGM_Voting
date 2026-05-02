@@ -1,0 +1,247 @@
+@page "/meetings"
+@attribute [Authorize(Roles = "admin,operator")]
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@inject IDialogService DialogService
+
+<PageTitle>Cuộc họp — MMS</PageTitle>
+
+<div class="d-flex align-center justify-space-between mb-4">
+    <div>
+        <MudText Typo="Typo.h5" Style="color:#1275BC;font-weight:700">Quản lý Cuộc họp</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">
+            Tổng quan tất cả cuộc họp đã lên lịch và trong lịch sử.
+        </MudText>
+    </div>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add"
+               Href="/meetings/new">
+        Tạo mới
+    </MudButton>
+</div>
+
+@* Filter bar *@
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" md="3">
+            <MudSelect @bind-Value="_filterYear" Label="Năm" Variant="Variant.Outlined"
+                       Dense="true" Clearable="true" @bind-Value:after="ReloadGrid">
+                @for (var y = DateTime.Now.Year + 1; y >= 2020; y--)
+                {
+                    var year = y;
+                    <MudSelectItem Value="@((int?)year)">@year</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" md="3">
+            <MudSelect @bind-Value="_filterStatus" Label="Trạng thái" Variant="Variant.Outlined"
+                       Dense="true" Clearable="true" @bind-Value:after="ReloadGrid">
+                @foreach (var s in Enum.GetValues<MeetingStatus>())
+                {
+                    <MudSelectItem Value="@((MeetingStatus?)s)">@GetStatusLabel(s)</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudTextField @bind-Value="_search" Label="Tìm kiếm tên cuộc họp"
+                          Variant="Variant.Outlined" Dense="true"
+                          Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Search"
+                          @bind-Value:after="ReloadGrid" />
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudDataGrid T="MeetingListItemDto" ServerData="LoadServerData"
+             @ref="_grid" Hover="true" Striped="true" Dense="false"
+             RowsPerPage="20" Elevation="2">
+    <Columns>
+        <PropertyColumn Property="m => m.Title" Title="Tên cuộc họp" />
+        <TemplateColumn Title="Ngày họp">
+            <CellTemplate Context="ctx">
+                @ctx.Item.MeetingDate.ToString("dd/MM/yyyy")
+            </CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="Ngày ĐKCC">
+            <CellTemplate Context="ctx">
+                @ctx.Item.RecordDate.ToString("dd/MM/yyyy")
+            </CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="DS cổ đông" CellStyle="text-align:center">
+            <CellTemplate Context="ctx">
+                @if (ctx.Item.ShareholderCount > 0)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">
+                        @ctx.Item.ShareholderCount.ToString("N0") — Đã import
+                    </MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">
+                        Chưa import
+                    </MudChip>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="Trạng thái" CellStyle="text-align:center">
+            <CellTemplate Context="ctx">
+                <MudChip T="string" Size="Size.Small"
+                         Color="@GetStatusColor(ctx.Item.Status)"
+                         Variant="Variant.Filled">
+                    @GetStatusLabel(ctx.Item.Status)
+                </MudChip>
+            </CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="Thao tác" CellStyle="width:240px;text-align:right">
+            <CellTemplate Context="ctx">
+                @* Upload button — hidden when status >= CheckIn *@
+                @if (ctx.Item.Status < MeetingStatus.CheckIn)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Upload" Size="Size.Small"
+                                   Color="Color.Success"
+                                   OnClick="() => HandleUploadClick(ctx.Item)"
+                                   title="Import VSDC" />
+                }
+
+                @* View shareholders — only when imported *@
+                @if (ctx.Item.ShareholderCount > 0)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small"
+                                   Color="Color.Info"
+                                   Href="@($"/meetings/{ctx.Item.Id}/shareholders")"
+                                   title="Xem DS cổ đông" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Mail" Size="Size.Small"
+                                   Color="Color.Tertiary"
+                                   Href="@($"/meetings/{ctx.Item.Id}/letters")"
+                                   title="Thư mời" />
+                                   
+                    <MudMenu Icon="@Icons.Material.Filled.PlayCircle" Size="Size.Small" Color="Color.Success" 
+                             AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" AriaLabel="Tác nghiệp">
+                        <MudMenuItem Href="@($"/meetings/{ctx.Item.Id}/proxies")" Icon="@Icons.Material.Filled.AssignmentInd">Ủy quyền</MudMenuItem>
+                        <MudMenuItem Href="@($"/meetings/{ctx.Item.Id}/checkin")" Icon="@Icons.Material.Filled.HowToReg">Bàn Check-in</MudMenuItem>
+                        <MudMenuItem Href="@($"/meetings/{ctx.Item.Id}/attendance")" Icon="@Icons.Material.Filled.FactCheck">Thẩm tra tư cách</MudMenuItem>
+                        <MudMenuItem Href="@($"/meetings/{ctx.Item.Id}/tallying")" Icon="@Icons.Material.Filled.HowToVote">Kiểm phiếu</MudMenuItem>
+                    </MudMenu>
+                }
+
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                               Color="Color.Primary"
+                               Href="@($"/meetings/{ctx.Item.Id}/edit")"
+                               title="Sửa" />
+                <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+                               Color="Color.Default"
+                               OnClick="() => Clone(ctx.Item.Id)"
+                               title="Nhân bản" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                               Color="Color.Error"
+                               OnClick="() => Delete(ctx.Item.Id)"
+                               title="Xóa" />
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <PagerContent>
+        <MudDataGridPager T="MeetingListItemDto" />
+    </PagerContent>
+    <NoRecordsContent>
+        <MudText Class="pa-4" Color="Color.Secondary">
+            Chưa có cuộc họp nào. Bấm "Tạo mới" để bắt đầu.
+        </MudText>
+    </NoRecordsContent>
+</MudDataGrid>
+
+@code {
+    private MudDataGrid<MeetingListItemDto>? _grid;
+    private int? _filterYear;
+    private MeetingStatus? _filterStatus;
+    private string _search = string.Empty;
+
+    private async Task<GridData<MeetingListItemDto>> LoadServerData(
+        GridState<MeetingListItemDto> state, CancellationToken ct)
+    {
+        var result = await Mediator.Send(new GetMeetingsQuery(
+            Year: _filterYear,
+            Status: _filterStatus,
+            Search: _search,
+            Page: state.Page + 1,
+            PageSize: state.PageSize));
+
+        return new GridData<MeetingListItemDto>
+        {
+            Items = result.Items,
+            TotalItems = result.TotalCount,
+        };
+    }
+
+    private void ReloadGrid() => _grid?.ReloadServerData();
+
+    private async Task HandleUploadClick(MeetingListItemDto meeting)
+    {
+        if (meeting.ShareholderCount > 0)
+        {
+            // Confirm replacement
+            var result = await DialogService.ShowMessageBoxAsync(
+                "Xác nhận thay thế",
+                $"Cuộc họp \"{meeting.Title}\" đã có {meeting.ShareholderCount:N0} cổ đông. " +
+                "Nạp file mới sẽ thay thế toàn bộ danh sách cũ. Bạn chắc chắn muốn tiếp tục?",
+                yesText: "Đồng ý", cancelText: "Hủy");
+
+            if (result != true) return;
+        }
+
+        Nav.NavigateTo($"/meetings/{meeting.Id}/import");
+    }
+
+    private async Task Clone(Guid id)
+    {
+        try
+        {
+            await Mediator.Send(new CloneMeetingCommand(id));
+            Snackbar.Add("Đã nhân bản cuộc họp thành công", Severity.Success);
+            _grid?.ReloadServerData();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task Delete(Guid id)
+    {
+        try
+        {
+            await Mediator.Send(new DeleteMeetingCommand(id));
+            Snackbar.Add("Đã xóa cuộc họp", Severity.Success);
+            _grid?.ReloadServerData();
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Lỗi: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private static Color GetStatusColor(MeetingStatus status) => status switch
+    {
+        MeetingStatus.New       => Color.Default,
+        MeetingStatus.Preparing => Color.Info,
+        MeetingStatus.CheckIn   => Color.Warning,
+        MeetingStatus.InSession => Color.Primary,
+        MeetingStatus.Tallying  => Color.Secondary,
+        MeetingStatus.Completed => Color.Success,
+        _                       => Color.Default,
+    };
+
+    private static string GetStatusLabel(MeetingStatus status) => status switch
+    {
+        MeetingStatus.New       => "Mới tạo",
+        MeetingStatus.Preparing => "Đang chuẩn bị",
+        MeetingStatus.CheckIn   => "Check-in",
+        MeetingStatus.InSession => "Đang diễn ra",
+        MeetingStatus.Tallying  => "Kiểm phiếu",
+        MeetingStatus.Completed => "Đã hoàn thành",
+        _                       => status.ToString(),
+    };
+}

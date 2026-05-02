@@ -1,0 +1,11 @@
+@* Not using @page because it's used from Routes.razor LayoutView *@
+<MudContainer MaxWidth="MaxWidth.Small" Class="text-center mt-16">
+    <MudText Typo="Typo.h1" Style="color:#1a3a5c;font-size:6rem">404</MudText>
+    <MudText Typo="Typo.h5" Class="mb-4">Không tìm thấy trang</MudText>
+    <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-6">
+        Trang bạn tìm kiếm không tồn tại hoặc đã bị xóa.
+    </MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/">
+        Về trang chủ
+    </MudButton>
+</MudContainer>

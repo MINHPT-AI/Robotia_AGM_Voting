@@ -1,0 +1,47 @@
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthState
+
+<div class="d-flex align-center">
+    <MudAvatar Size="Size.Small"
+               Style="background:#fff;color:#1565C0;font-weight:700;">
+        @_userInitial
+    </MudAvatar>
+    <MudText Typo="Typo.body2" Class="ml-2 mr-1" Style="color:inherit;white-space:nowrap;">@_userName</MudText>
+    <MudMenu Icon="@Icons.Material.Filled.ArrowDropDown"
+             Color="Color.Inherit"
+             AnchorOrigin="Origin.BottomRight"
+             TransformOrigin="Origin.TopRight"
+             Dense="true">
+        <MudMenuItem Icon="@Icons.Material.Filled.Person"
+                     Href="/account/profile">
+            Hồ sơ của tôi
+        </MudMenuItem>
+        <MudMenuItem Icon="@Icons.Material.Filled.Lock"
+                     Href="/account/profile">
+            Đổi mật khẩu
+        </MudMenuItem>
+        <MudDivider />
+        <MudMenuItem Icon="@Icons.Material.Filled.Logout"
+                     OnClick="HandleLogout">
+            Đăng xuất
+        </MudMenuItem>
+    </MudMenu>
+</div>
+
+@code {
+    private string _userName = "";
+    private string _userInitial = "?";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState = await AuthState.GetAuthenticationStateAsync();
+            _userName = authState.User.Identity?.Name ?? "";
+            _userInitial = string.IsNullOrEmpty(_userName) ? "?" : _userName.Substring(0, 1).ToUpper();
+        }
+        catch { }
+    }
+
+    private void HandleLogout() => Nav.NavigateTo("/account/logout", forceLoad: true);
+}

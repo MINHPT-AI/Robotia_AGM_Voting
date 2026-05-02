@@ -1,0 +1,286 @@
+@page "/meetings/{MeetingId:guid}/shareholders"
+@attribute [Authorize(Roles = "admin,operator")]
+@using MediatR
+@using System.Text
+@using Microsoft.JSInterop
+@using Mms.Application.Shareholders.Dtos
+@using Mms.Application.Shareholders.Queries
+@using Mms.Application.Meetings.Queries
+@using Mms.Application.Meetings.Dtos
+
+@inject IMediator Mediator
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject IJSRuntime JsRuntime
+
+<PageTitle>Danh sách Cổ đông — MMS</PageTitle>
+
+<div class="d-flex align-center justify-space-between mb-4">
+    <div>
+        <MudText Typo="Typo.h5" Style="color:#1275BC;font-weight:700">Danh sách Cổ đông</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">
+            @if (_meeting != null)
+            {
+                <span>Cuộc họp: <strong>@_meeting.Title</strong> — Ngày ĐKCC: <strong>@_meeting.RecordDate.ToString("dd/MM/yyyy")</strong></span>
+            }
+        </MudText>
+    </div>
+    <div class="d-flex gap-2">
+        <MudButton Variant="Variant.Outlined" Color="Color.Success"
+                   StartIcon="@Icons.Material.Filled.Download"
+                   OnClick="ExportCsv" Disabled="_exporting">
+            @if (_exporting) { <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-1" /> }
+            Xuất CSV
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                   Href="/meetings">Quay lại</MudButton>
+    </div>
+</div>
+
+@* Summary cards *@
+@if (_shareholders != null)
+{
+    var indDom = _shareholders.Count(s => !s.IsOrganization && !s.IsForeign);
+    var indFor = _shareholders.Count(s => !s.IsOrganization && s.IsForeign);
+    var orgDom = _shareholders.Count(s => s.IsOrganization && !s.IsForeign);
+    var orgFor = _shareholders.Count(s => s.IsOrganization && s.IsForeign);
+    var indCount = indDom + indFor;
+    var orgCount = orgDom + orgFor;
+    var totalVR = _shareholders.Sum(s => s.VotingRights);
+
+    <MudGrid Class="mb-4">
+        @* Tổng cổ đông *@
+        <MudItem xs="12" md="2">
+            <MudPaper Elevation="0" Class="pa-3" Style="background:#e3f2fd;border-radius:10px;text-align:center;">
+                <MudText Typo="Typo.h4" Style="font-weight:700;color:#1565c0;">@_shareholders.Count.ToString("N0")</MudText>
+                <MudText Typo="Typo.caption" Style="font-weight:600;">Tổng cổ đông</MudText>
+            </MudPaper>
+        </MudItem>
+
+        @* Cá nhân (trong nước / nước ngoài) *@
+        <MudItem xs="6" md="3">
+            <MudPaper Elevation="0" Class="pa-3" Style="background:#e8f5e9;border-radius:10px;">
+                <div class="d-flex align-center justify-space-between mb-1">
+                    <MudText Typo="Typo.caption" Style="font-weight:600;color:#2e7d32;">Cá nhân</MudText>
+                    <MudText Typo="Typo.h5" Style="font-weight:700;color:#2e7d32;">@indCount.ToString("N0")</MudText>
+                </div>
+                <div class="d-flex justify-space-between" style="font-size:0.75rem;color:#666;">
+                    <span>Trong nước: <strong>@indDom</strong></span>
+                    <span>Nước ngoài: <strong>@indFor</strong></span>
+                </div>
+            </MudPaper>
+        </MudItem>
+
+        @* Tổ chức (trong nước / nước ngoài) *@
+        <MudItem xs="6" md="3">
+            <MudPaper Elevation="0" Class="pa-3" Style="background:#fff3e0;border-radius:10px;">
+                <div class="d-flex align-center justify-space-between mb-1">
+                    <MudText Typo="Typo.caption" Style="font-weight:600;color:#e65100;">Tổ chức</MudText>
+                    <MudText Typo="Typo.h5" Style="font-weight:700;color:#e65100;">@orgCount.ToString("N0")</MudText>
+                </div>
+                <div class="d-flex justify-space-between" style="font-size:0.75rem;color:#666;">
+                    <span>Trong nước: <strong>@orgDom</strong></span>
+                    <span>Nước ngoài: <strong>@orgFor</strong></span>
+                </div>
+            </MudPaper>
+        </MudItem>
+
+        @* Tổng QBQ *@
+        <MudItem xs="12" md="4">
+            <MudPaper Elevation="0" Class="pa-3" Style="background:#f3e5f5;border-radius:10px;text-align:center;">
+                <MudText Typo="Typo.h5" Style="font-weight:700;color:#6a1b9a;">@totalVR.ToString("N0")</MudText>
+                <MudText Typo="Typo.caption">Tổng QBQ</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@* Data table *@
+@if (_shareholders == null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_shareholders.Count == 0)
+{
+    <MudAlert Severity="Severity.Info" Class="mb-4">
+        Cuộc họp chưa có danh sách cổ đông. Hãy Import từ file VSDC.
+    </MudAlert>
+}
+else
+{
+    <style>
+        .shareholders-grid .mud-table-container {
+            max-height: calc(100vh - 340px);
+            overflow: auto !important;
+        }
+        .shareholders-grid .mud-table-head th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background: #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,.12);
+            white-space: nowrap;
+            font-size: 0.75rem;
+        }
+        .shareholders-grid .mud-table-body td {
+            white-space: nowrap;
+            font-size: 0.78rem;
+            padding: 4px 8px !important;
+        }
+    </style>
+
+    <div class="shareholders-grid">
+        <MudDataGrid T="ShareholderListDto" Items="_shareholders"
+                     Hover="true" Dense="true" Bordered="true" Striped="true"
+                     RowsPerPage="100" Elevation="2"
+                     FixedHeader="true" Height="calc(100vh - 340px)">
+            <Columns>
+                @* --- Classification columns (compact) --- *@
+                <TemplateColumn Title="Loại" CellStyle="text-align:center;width:70px;padding:2px 4px;">
+                    <CellTemplate Context="ctx">
+                        <MudChip T="string" Size="Size.Small"
+                                 Color="@(ctx.Item.IsOrganization ? Color.Warning : Color.Info)"
+                                 Variant="Variant.Outlined" Style="font-size:0.7rem;">
+                            @(ctx.Item.IsOrganization ? "TC" : "CN")
+                        </MudChip>
+                    </CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="TN/NN" CellStyle="text-align:center;width:70px;padding:2px 4px;">
+                    <CellTemplate Context="ctx">
+                        <MudChip T="string" Size="Size.Small"
+                                 Color="@(ctx.Item.IsForeign ? Color.Error : Color.Success)"
+                                 Variant="Variant.Outlined" Style="font-size:0.7rem;">
+                            @(ctx.Item.IsForeign ? "NN" : "TN")
+                        </MudChip>
+                    </CellTemplate>
+                </TemplateColumn>
+
+                @* --- VSDC columns --- *@
+                <PropertyColumn Property="s => s.VsdcRow" Title="STT VSDC" CellStyle="width:60px;" />
+                <PropertyColumn Property="s => s.FullName" Title="Họ và tên" CellStyle="min-width:200px;white-space:normal;" />
+                <PropertyColumn Property="s => s.Sid" Title="Mã SID" CellStyle="width:140px;" />
+                <PropertyColumn Property="s => s.InvestorCode" Title="Mã NĐT" CellStyle="width:140px;" />
+                <PropertyColumn Property="s => s.IdNumber" Title="Số ĐKSH" CellStyle="width:130px;" />
+                <TemplateColumn Title="Ngày cấp" CellStyle="width:85px;">
+                    <CellTemplate Context="ctx">
+                        @(ctx.Item.IdIssueDate?.ToString("dd/MM/yyyy"))
+                    </CellTemplate>
+                </TemplateColumn>
+                <PropertyColumn Property="s => s.Address" Title="Địa chỉ" CellStyle="min-width:180px;white-space:normal;" />
+                <PropertyColumn Property="s => s.Email" Title="Email" CellStyle="width:150px;" />
+                <PropertyColumn Property="s => s.Phone" Title="ĐT" CellStyle="width:100px;" />
+                <PropertyColumn Property="s => s.Nationality" Title="Quốc tịch" CellStyle="width:80px;" />
+                <TemplateColumn Title="CK Chưa LK" CellStyle="text-align:right;width:90px;">
+                    <CellTemplate Context="ctx">@ctx.Item.SharesNonDeposit.ToString("N0")</CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="CK Lưu ký" CellStyle="text-align:right;width:90px;">
+                    <CellTemplate Context="ctx">@ctx.Item.SharesDeposit.ToString("N0")</CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="CK Tổng" CellStyle="text-align:right;width:90px;font-weight:600;">
+                    <CellTemplate Context="ctx">@ctx.Item.SharesTotal.ToString("N0")</CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="QBQ Chưa LK" CellStyle="text-align:right;width:90px;">
+                    <CellTemplate Context="ctx">@ctx.Item.RightsNonDeposit.ToString("N0")</CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="QBQ Lưu ký" CellStyle="text-align:right;width:90px;">
+                    <CellTemplate Context="ctx">@ctx.Item.RightsDeposit.ToString("N0")</CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="QBQ Tổng" CellStyle="text-align:right;width:100px;font-weight:700;">
+                    <CellTemplate Context="ctx">@ctx.Item.VotingRights.ToString("N0")</CellTemplate>
+                </TemplateColumn>
+            </Columns>
+            <PagerContent>
+                <MudDataGridPager T="ShareholderListDto" />
+            </PagerContent>
+        </MudDataGrid>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid MeetingId { get; set; }
+
+    private MeetingDetailDto? _meeting;
+    private List<ShareholderListDto>? _shareholders;
+    private bool _exporting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _meeting = await Mediator.Send(new GetMeetingByIdQuery(MeetingId));
+        if (_meeting == null)
+        {
+            Snackbar.Add("Không tìm thấy cuộc họp", Severity.Error);
+            Nav.NavigateTo("/meetings");
+            return;
+        }
+
+        _shareholders = await Mediator.Send(new GetShareholdersByMeetingQuery(MeetingId));
+    }
+
+    private async Task ExportCsv()
+    {
+        if (_shareholders == null || _shareholders.Count == 0) return;
+        _exporting = true;
+        StateHasChanged();
+
+        try
+        {
+            var sb = new StringBuilder();
+            // BOM for Excel UTF-8 support
+            sb.Append('\uFEFF');
+            // Header
+            sb.AppendLine("Loại,Trong/Ngoài,Stt DS VSDC,Họ và tên,Mã SID,Mã NĐT,Số ĐKSH,Ngày cấp,Địa chỉ,Email,Điện thoại,Quốc tịch,CK Chưa LK,CK Lưu ký,CK Tổng,QBQ Chưa LK,QBQ Lưu ký,QBQ Tổng");
+
+            foreach (var s in _shareholders)
+            {
+                sb.Append(s.IsOrganization ? "Tổ chức" : "Cá nhân").Append(',');
+                sb.Append(s.IsForeign ? "Nước ngoài" : "Trong nước").Append(',');
+                sb.Append(CsvEscape(s.VsdcRow)).Append(',');
+                sb.Append(CsvEscape(s.FullName)).Append(',');
+                sb.Append(CsvEscape(s.Sid)).Append(',');
+                sb.Append(CsvEscape(s.InvestorCode)).Append(',');
+                sb.Append(CsvEscape(s.IdNumber)).Append(',');
+                sb.Append(CsvEscape(s.IdIssueDate?.ToString("dd/MM/yyyy"))).Append(',');
+                sb.Append(CsvEscape(s.Address)).Append(',');
+                sb.Append(CsvEscape(s.Email)).Append(',');
+                sb.Append(CsvEscape(s.Phone)).Append(',');
+                sb.Append(CsvEscape(s.Nationality)).Append(',');
+                sb.Append(s.SharesNonDeposit).Append(',');
+                sb.Append(s.SharesDeposit).Append(',');
+                sb.Append(s.SharesTotal).Append(',');
+                sb.Append(s.RightsNonDeposit).Append(',');
+                sb.Append(s.RightsDeposit).Append(',');
+                sb.AppendLine(s.VotingRights.ToString());
+            }
+
+            var bytes = Encoding.UTF8.GetBytes(sb.ToString());
+            var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmm");
+            var titleSlug = _meeting?.Title?.Replace(" ", "_") ?? "export";
+            var fileName = $"DS_CoDong_{titleSlug}_{timestamp}.csv";
+
+            // Trigger download via JS interop
+            await JsRuntime.InvokeVoidAsync("downloadFileFromBytes", fileName, "text/csv", bytes);
+
+            var count = _shareholders.Count.ToString("N0");
+            Snackbar.Add($"Đã xuất {count} cổ đông ra file CSV", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Lỗi xuất file: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _exporting = false;
+            StateHasChanged();
+        }
+    }
+
+    private static string CsvEscape(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return "";
+        var needsQuoting = value.Contains(',') || value.Contains('"') || value.Contains('\n');
+        if (!needsQuoting) return value;
+        var escaped = value.Replace("\"", "\"\"");
+        return "\"" + escaped + "\"";
+    }
+}

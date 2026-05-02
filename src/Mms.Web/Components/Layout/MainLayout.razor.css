@@ -1,0 +1,6 @@
+/* MainLayout.razor.css — MudBlazor overrides */
+.mud-drawer .mud-nav-link.active {
+    background-color: rgba(26, 58, 92, 0.12);
+    color: #1a3a5c;
+    font-weight: 600;
+}

@@ -1,0 +1,248 @@
+@page "/company"
+@attribute [Authorize(Roles = "admin")]
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>Thông tin Công ty — MMS</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4" Style="color:#1275BC;font-weight:700">
+    Thông tin Doanh nghiệp
+</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-6">
+    Quản lý thông tin pháp lý, người đại diện, cơ cấu vốn và tài liệu xác thực.
+</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+}
+else
+{
+    <EditForm Model="_form" OnValidSubmit="HandleSave" FormName="CompanyForm">
+        <DataAnnotationsValidator />
+
+        @* ── Section 1: Định danh & Địa chỉ ── *@
+        <MudCard Elevation="2" Class="mb-4">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.subtitle1" Style="font-weight:600">Định danh & Địa điểm</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudGrid>
+                    <MudItem xs="12" md="8">
+                        <MudTextField @bind-Value="_form.Name" Label="Tên công ty *"
+                                      Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudTextField @bind-Value="_form.ShortName" Label="Tên viết tắt"
+                                      Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_form.EnglishName" Label="Tên tiếng Anh"
+                                      Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudTextField @bind-Value="_form.TaxCode" Label="Mã số thuế *"
+                                      Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudTextField @bind-Value="_form.StockCode" Label="Mã chứng khoán"
+                                      Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudSelect @bind-Value="_form.StockExchange" Label="Sàn niêm yết"
+                                   Variant="Variant.Outlined" Clearable="true">
+                            <MudSelectItem Value="@("HOSE")">HOSE</MudSelectItem>
+                            <MudSelectItem Value="@("HNX")">HNX</MudSelectItem>
+                            <MudSelectItem Value="@("UPCOM")">UPCOM</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" md="9">
+                        <MudTextField @bind-Value="_form.Address" Label="Địa chỉ trụ sở chính"
+                                      Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudTextField @bind-Value="_form.Phone" Label="Số điện thoại"
+                                      Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudTextField @bind-Value="_form.Email" Label="Email"
+                                      InputType="InputType.Email" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudTextField @bind-Value="_form.Fax" Label="Fax"
+                                      Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_form.Website" Label="Website"
+                                      Variant="Variant.Outlined" />
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+
+        @* ── Section 2: Người đại diện + ảnh ── *@
+        <MudCard Elevation="2" Class="mb-4">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.subtitle1" Style="font-weight:600">Người đại diện pháp luật</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_form.LegalRepName" Label="Họ và tên *"
+                                      Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_form.LegalRepTitle" Label="Chức vụ *"
+                                      Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudText Typo="Typo.body2" Class="mb-2" Style="font-weight:500">Con dấu công ty</MudText>
+                        <ImageUploader Label="Tải ảnh con dấu"
+                                       AcceptedTypes="image/png,image/jpeg"
+                                       CurrentPath="@_form.SealImagePath"
+                                       OnUploaded="@(path => { _form.SealImagePath = path; StateHasChanged(); })" />
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudText Typo="Typo.body2" Class="mb-2" Style="font-weight:500">Chữ ký đại diện</MudText>
+                        <ImageUploader Label="Tải ảnh chữ ký"
+                                       AcceptedTypes="image/png,image/jpeg"
+                                       CurrentPath="@_form.SignatureImagePath"
+                                       OnUploaded="@(path => { _form.SignatureImagePath = path; StateHasChanged(); })" />
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudText Typo="Typo.body2" Class="mb-2" Style="font-weight:500">Logo công ty</MudText>
+                        <ImageUploader Label="Tải logo"
+                                       AcceptedTypes="image/png,image/jpeg,image/svg+xml"
+                                       CurrentPath="@_form.LogoPath"
+                                       OnUploaded="@(path => { _form.LogoPath = path; StateHasChanged(); })" />
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+
+        @* ── Section 3: Cơ cấu vốn ── *@
+        <MudCard Elevation="2" Class="mb-6">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.subtitle1" Style="font-weight:600">Cơ cấu vốn</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudGrid>
+                    <MudItem xs="12" md="4">
+                        <MudNumericField @bind-Value="_form.CharterCapital"
+                                         Label="Vốn điều lệ (đồng) *"
+                                         Variant="Variant.Outlined" Format="N0" />
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudNumericField @bind-Value="_form.TotalSharesIssued"
+                                         Label="Tổng cổ phần phát hành *"
+                                         Variant="Variant.Outlined" Format="N0" />
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudNumericField @bind-Value="_form.TotalVotingShares"
+                                         Label="Cổ phần có quyền biểu quyết *"
+                                         Variant="Variant.Outlined" Format="N0" />
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+
+        <div class="d-flex justify-end gap-3 mb-6">
+            <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                       OnClick="Reset" Disabled="_saving">
+                Hủy
+            </MudButton>
+            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled"
+                       Color="Color.Primary" Disabled="_saving">
+                @(_saving ? "Đang lưu..." : "Lưu cấu hình")
+            </MudButton>
+        </div>
+    </EditForm>
+}
+
+@code {
+    private CompanyFormModel _form = new();
+    private bool _loading = true;
+    private bool _saving = false;
+    private Guid? _companyId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var dto = await Mediator.Send(new GetCompanyQuery());
+        if (dto is not null)
+        {
+            _companyId = dto.Id;
+            _form = CompanyFormModel.FromDto(dto);
+        }
+        _loading = false;
+    }
+
+    private async Task HandleSave()
+    {
+        _saving = true;
+        try
+        {
+            var result = await Mediator.Send(_form.ToCommand(_companyId));
+            _companyId = result.Id;
+            Snackbar.Add("Lưu thành công!", Severity.Success);
+        }
+        catch (Mms.Application.Common.Exceptions.ValidationException ex)
+        {
+            var msg = string.Join(" | ", ex.Errors.SelectMany(e => e.Value));
+            Snackbar.Add(msg, Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Lỗi: {ex.Message}", Severity.Error);
+        }
+        finally { _saving = false; }
+    }
+
+    private void Reset() => Nav.NavigateTo("/company", forceLoad: true);
+
+    public class CompanyFormModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public string? ShortName { get; set; }
+        public string? EnglishName { get; set; }
+        public string TaxCode { get; set; } = string.Empty;
+        public string? StockCode { get; set; }
+        public string? StockExchange { get; set; }
+        public string? Address { get; set; }
+        public string? Phone { get; set; }
+        public string? Email { get; set; }
+        public string? Fax { get; set; }
+        public string? Website { get; set; }
+        public string LegalRepName { get; set; } = string.Empty;
+        public string LegalRepTitle { get; set; } = string.Empty;
+        public long CharterCapital { get; set; }
+        public long TotalSharesIssued { get; set; }
+        public long TotalVotingShares { get; set; }
+        public string? LogoPath { get; set; }
+        public string? SealImagePath { get; set; }
+        public string? SignatureImagePath { get; set; }
+
+        public static CompanyFormModel FromDto(CompanyDto dto) => new()
+        {
+            Name = dto.Name, ShortName = dto.ShortName, EnglishName = dto.EnglishName,
+            TaxCode = dto.TaxCode, StockCode = dto.StockCode, StockExchange = dto.StockExchange,
+            Address = dto.Address, Phone = dto.Phone, Email = dto.Email, Fax = dto.Fax,
+            Website = dto.Website, LegalRepName = dto.LegalRepName, LegalRepTitle = dto.LegalRepTitle,
+            CharterCapital = dto.CharterCapital, TotalSharesIssued = dto.TotalSharesIssued,
+            TotalVotingShares = dto.TotalVotingShares, LogoPath = dto.LogoPath,
+            SealImagePath = dto.SealImagePath, SignatureImagePath = dto.SignatureImagePath,
+        };
+
+        public UpsertCompanyCommand ToCommand(Guid? id) => new(
+            id, Name, ShortName, EnglishName, TaxCode, StockCode, StockExchange,
+            Address, Phone, Email, Fax, Website, LegalRepName, LegalRepTitle,
+            CharterCapital, TotalSharesIssued, TotalVotingShares,
+            LogoPath, SealImagePath, SignatureImagePath);
+    }
+}

@@ -1,0 +1,81 @@
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Edit" Class="mr-2" />
+            Sửa tài khoản
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField Value="@User.UserName" Label="Tên đăng nhập"
+                      Variant="Variant.Outlined" ReadOnly="true" Class="mb-3" />
+        <MudTextField @bind-Value="_fullName" Label="Họ tên *"
+                      Variant="Variant.Outlined" Class="mb-3" />
+        <MudTextField @bind-Value="_email" Label="Email"
+                      InputType="InputType.Email"
+                      Variant="Variant.Outlined" Class="mb-3" />
+        <MudSelect @bind-Value="_role" Label="Vai trò *"
+                   Variant="Variant.Outlined" Class="mb-3">
+            <MudSelectItem Value="@("admin")">admin</MudSelectItem>
+            <MudSelectItem Value="@("operator")">operator</MudSelectItem>
+            <MudSelectItem Value="@("viewer")">viewer</MudSelectItem>
+            <MudSelectItem Value="@("checkin")">checkin</MudSelectItem>
+        </MudSelect>
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-2">@_errorMessage</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_saving">Huỷ</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   OnClick="Submit" Disabled="_saving">
+            @(_saving ? "Đang lưu..." : "Lưu thay đổi")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public UserListItemDto User { get; set; } = null!;
+
+    private string _fullName = string.Empty;
+    private string? _email;
+    private string _role = string.Empty;
+    private bool _saving;
+    private string? _errorMessage;
+
+    protected override void OnParametersSet()
+    {
+        _fullName = User.FullName;
+        _email = User.Email;
+        _role = User.Role;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        _errorMessage = null;
+        _saving = true;
+        try
+        {
+            await Mediator.Send(new UpdateUserCommand(
+                User.Id, _fullName, _email, _role));
+            Snackbar.Add("Cập nhật thành công", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Mms.Application.Common.Exceptions.ValidationException ex)
+        {
+            _errorMessage = string.Join(" | ", ex.Errors.SelectMany(e => e.Value));
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally { _saving = false; }
+    }
+}

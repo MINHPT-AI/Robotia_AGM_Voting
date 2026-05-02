@@ -1,0 +1,55 @@
+@using MudBlazor
+@using Mms.Domain.Entities
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form">
+            <MudGrid>
+                <MudItem xs="6">
+                    <MudNumericField @bind-Value="MarginTop" Label="Lề trên (cm)" Min="0" Max="10" Step="0.1f" Variant="Variant.Outlined" Required="true" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudNumericField @bind-Value="MarginBottom" Label="Lề dưới (cm)" Min="0" Max="10" Step="0.1f" Variant="Variant.Outlined" Required="true" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudNumericField @bind-Value="MarginLeft" Label="Lề trái (cm)" Min="0" Max="10" Step="0.1f" Variant="Variant.Outlined" Required="true" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudNumericField @bind-Value="MarginRight" Label="Lề phải (cm)" Min="0" Max="10" Step="0.1f" Variant="Variant.Outlined" Required="true" />
+                </MudItem>
+            </MudGrid>
+            <div class="mt-4">
+                <MudText Typo="Typo.body2" Color="Color.Info">
+                    <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Class="mr-1" />
+                    Chuẩn NĐ 30/2020: Trên 2cm, Dưới 2cm, Trái 3cm, Phải 2cm.
+                </MudText>
+            </div>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Hủy</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Áp dụng</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    
+    [Parameter] public float MarginTop { get; set; }
+    [Parameter] public float MarginBottom { get; set; }
+    [Parameter] public float MarginLeft { get; set; }
+    [Parameter] public float MarginRight { get; set; }
+
+    private MudForm form = null!;
+
+    private async Task Submit()
+    {
+        await form.Validate();
+        if (form.IsValid)
+        {
+            MudDialog.Close(DialogResult.Ok(new { MarginTop, MarginBottom, MarginLeft, MarginRight }));
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

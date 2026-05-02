@@ -1,0 +1,357 @@
+@page "/templates/{Id:guid}/edit"
+@attribute [Authorize(Roles = "admin")]
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IJSRuntime Js
+@inject NavigationManager Nav
+@inject IDialogService DialogService
+@implements IAsyncDisposable
+
+<PageTitle>Soạn thảo mẫu — MMS</PageTitle>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_template is null)
+{
+    <MudAlert Severity="Severity.Error">Không tìm thấy mẫu văn bản.</MudAlert>
+}
+else
+{
+    @* ── Header bar ── *@
+    <div class="d-flex justify-space-between align-center mb-3">
+        <div>
+            <MudText Typo="Typo.h6" Style="color:#1275BC;font-weight:700">
+                📝 @_template.Name
+            </MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                @GetTemplateTypeLabel(_template.TemplateType) — @_template.Language
+                @if (_template.IsFinalized)
+                {
+                    <MudChip T="string" Color="Color.Success" Size="Size.Small" Class="ml-2">Đã chốt</MudChip>
+                }
+            </MudText>
+        </div>
+        <div class="d-flex gap-2">
+            <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                       OnClick="@(() => Nav.NavigateTo("/templates"))">
+                ← Quay lại
+            </MudButton>
+            
+            <MudButton Variant="Variant.Outlined" Color="Color.Info"
+                       StartIcon="@Icons.Material.Filled.Settings"
+                       OnClick="OpenPageSetup" Disabled="_template.IsFinalized">
+                Thiết lập trang
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.PictureAsPdf"
+                       OnClick="OpenPreview">
+                Xem trước
+            </MudButton>
+
+            @if (!_template.IsFinalized)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Save"
+                           OnClick="SaveDraft" Disabled="_saving">
+                    @(_saving ? "Đang lưu..." : "Lưu nháp")
+                </MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Success"
+                           StartIcon="@Icons.Material.Filled.Lock"
+                           OnClick="FinalizeTemplate" Disabled="_saving">
+                    Chốt mẫu
+                </MudButton>
+            }
+        </div>
+    </div>
+
+    @* ── Converting indicator ── *@
+    @if (_converting)
+    {
+        <MudAlert Severity="Severity.Info" Icon="@Icons.Material.Filled.AutoFixHigh" Class="mb-3">
+            Đang chuyển đổi văn bản DOCX sang trình soạn thảo... Vui lòng chờ.
+        </MudAlert>
+        <MudProgressLinear Indeterminate="true" Color="Color.Info" Class="mb-3" />
+    }
+
+    @* ── Token sidebar + Editor area ── *@
+    <MudGrid>
+        @* ── Left: Editor ── *@
+        <MudItem xs="12" md="9">
+            <MudPaper Elevation="2" Class="pa-0" Style="min-height:650px;">
+                <textarea id="mce-editor">@_initialHtml</textarea>
+            </MudPaper>
+        </MudItem>
+
+        @* ── Right: Token sidebar ── *@
+        <MudItem xs="12" md="3">
+            <MudPaper Elevation="2" Class="pa-3" Style="position:sticky;top:80px;">
+                <MudText Typo="Typo.subtitle2" Style="font-weight:600" Class="mb-2">
+                    📋 Token đã chọn
+                </MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+                    Click vào token để chèn tại vị trí con trỏ trong văn bản
+                </MudText>
+
+                @foreach (var token in _selectedTokens)
+                {
+                    <MudButton FullWidth="true" Variant="Variant.Text"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="@(() => InsertTokenViaJs(token))"
+                               Style="justify-content:flex-start;text-transform:none;"
+                               Class="mb-1" Disabled="_template.IsFinalized">
+                        <span style="font-weight:600;color:#1565c0;">@token.Code</span>
+                        <span class="ml-2" style="color:#666;">@token.Description</span>
+                    </MudButton>
+                }
+
+                @if (_template.UseSignatureAndSeal)
+                {
+                    <MudDivider Class="my-3" />
+                    <MudAlert Severity="Severity.Success" Icon="@Icons.Material.Filled.Verified" Class="mt-2 py-1">
+                        Sử dụng nút <b>Ký & Dấu</b> trên thanh công cụ để chèn tự động.
+                    </MudAlert>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private TemplateDetailDto? _template;
+    private IList<TokenRegistry.TokenInfo> _selectedTokens = [];
+    private bool _loading = true;
+    private bool _saving;
+    private bool _converting;
+    private string? _signatureUrl;
+    private string? _sealUrl;
+    private string _initialHtml = "";
+    private bool _editorInitialized;
+    private string? _legalRepTitle;
+    private string? _legalRepName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _template = await Mediator.Send(new GetTemplateDetailQuery(Id));
+
+        if (_template is null) { _loading = false; return; }
+
+        // Load selected tokens
+        if (!string.IsNullOrEmpty(_template.SelectedTokens))
+        {
+            var codes = System.Text.Json.JsonSerializer.Deserialize<List<string>>(_template.SelectedTokens) ?? [];
+            _selectedTokens = TokenRegistry.GetTokensByCode(codes);
+        }
+
+        // Load company info for signature/seal and legal rep
+        if (_template.UseSignatureAndSeal)
+        {
+            var company = await Mediator.Send(new Mms.Application.Companies.Queries.GetCompanyQuery());
+            if (company is not null)
+            {
+                _signatureUrl = company.SignatureImagePath;
+                _sealUrl = company.SealImagePath;
+                _legalRepTitle = company.LegalRepTitle;
+                _legalRepName = company.LegalRepName;
+            }
+        }
+
+        // If template already has HTML content, use it directly
+        if (!string.IsNullOrEmpty(_template.HtmlContent))
+        {
+            _initialHtml = _template.HtmlContent;
+        }
+
+        _loading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _template is null || _editorInitialized) return;
+
+        // If no HTML content yet, convert DOCX → HTML via Mammoth.js
+        if (string.IsNullOrEmpty(_template.HtmlContent) && _template.FilePath is not null)
+        {
+            _converting = true;
+            StateHasChanged();
+
+            try
+            {
+                var docxBytes = await Mediator.Send(new GetTemplateDocxBytesQuery(Id));
+                var html = await Js.InvokeAsync<string>("templateEditor.convertDocxToHtml", docxBytes);
+                _initialHtml = html;
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Lỗi chuyển đổi DOCX: {ex.Message}", Severity.Warning);
+                _initialHtml = "<p>Không thể chuyển đổi file DOCX. Vui lòng nhập nội dung thủ công.</p>";
+            }
+
+            _converting = false;
+            StateHasChanged();
+
+            // Small delay to let the textarea render
+            await Task.Delay(200);
+        }
+
+        var margins = new { 
+            top = _template.MarginTop, 
+            bottom = _template.MarginBottom, 
+            left = _template.MarginLeft, 
+            right = _template.MarginRight 
+        };
+
+        // Initialize TinyMCE
+        var tokenList = _selectedTokens.Select(t => new { code = t.Code, description = t.Description }).ToArray();
+        await Js.InvokeVoidAsync("templateEditor.initEditor",
+            "mce-editor", tokenList, _signatureUrl ?? "", _sealUrl ?? "", null, margins, _legalRepTitle ?? "Chủ tịch HĐQT", _legalRepName ?? "Họ tên");
+
+        // Set initial content after editor is ready
+        if (!string.IsNullOrEmpty(_initialHtml))
+        {
+            await Task.Delay(500); // wait for TinyMCE init
+            await Js.InvokeVoidAsync("templateEditor.setContent", "mce-editor", _initialHtml);
+        }
+
+        _editorInitialized = true;
+    }
+
+    private async Task InsertTokenViaJs(TokenRegistry.TokenInfo token)
+    {
+        await Js.InvokeVoidAsync("eval",
+            $"tinymce.get('mce-editor')?.insertContent('<span class=\"mce-token\" data-token=\"{token.Code}\" contenteditable=\"false\">{token.Code}</span>&nbsp;')");
+    }
+
+    private async Task OpenPageSetup()
+    {
+        if (_template == null) return;
+        var parameters = new DialogParameters<PageSetupDialog>
+        {
+            { x => x.MarginTop, _template.MarginTop },
+            { x => x.MarginBottom, _template.MarginBottom },
+            { x => x.MarginLeft, _template.MarginLeft },
+            { x => x.MarginRight, _template.MarginRight }
+        };
+
+        var dialog = await DialogService.ShowAsync<PageSetupDialog>("Thiết lập trang", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data != null)
+        {
+            // The object from dialog might be dynamic or JsonElement depending on how we passed it.
+            // Let's parse it safely
+            var json = System.Text.Json.JsonSerializer.Serialize(result.Data);
+            var parsed = System.Text.Json.JsonSerializer.Deserialize<PageMargins>(json);
+            
+            if (parsed != null)
+            {
+                _template = _template with 
+                { 
+                    MarginTop = parsed.MarginTop,
+                    MarginBottom = parsed.MarginBottom,
+                    MarginLeft = parsed.MarginLeft,
+                    MarginRight = parsed.MarginRight
+                };
+
+                await Mediator.Send(new UpdateTemplateMarginsCommand(Id, parsed.MarginTop, parsed.MarginBottom, parsed.MarginLeft, parsed.MarginRight));
+                
+                // Re-init editor to apply new margins
+                await Js.InvokeVoidAsync("templateEditor.destroy", "mce-editor");
+                _editorInitialized = false;
+                await OnAfterRenderAsync(true);
+            }
+        }
+    }
+    
+    private class PageMargins {
+        public float MarginTop { get; set; }
+        public float MarginBottom { get; set; }
+        public float MarginLeft { get; set; }
+        public float MarginRight { get; set; }
+    }
+
+    private async Task OpenPreview()
+    {
+        var html = await Js.InvokeAsync<string>("templateEditor.getContent", "mce-editor");
+        
+        var parameters = new DialogParameters<PreviewDialog>
+        {
+            { x => x.HtmlContent, html },
+            { x => x.Template, _template }
+        };
+        await DialogService.ShowAsync<PreviewDialog>("Xem trước văn bản", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+    }
+
+    private async Task SaveDraft()
+    {
+        _saving = true;
+        try
+        {
+            var html = await Js.InvokeAsync<string>("templateEditor.getContent", "mce-editor");
+            await Mediator.Send(new SaveTemplateContentCommand(Id, html));
+            Snackbar.Add("Đã lưu nháp thành công!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Lỗi lưu: {ex.Message}", Severity.Error);
+        }
+        finally { _saving = false; }
+    }
+
+    private async Task FinalizeTemplate()
+    {
+        // Save content first
+        try
+        {
+            var html = await Js.InvokeAsync<string>("templateEditor.getContent", "mce-editor");
+            await Mediator.Send(new SaveTemplateContentCommand(Id, html));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Lỗi lưu nội dung: {ex.Message}", Severity.Error);
+            return;
+        }
+
+        // Then finalize
+        try
+        {
+            await Mediator.Send(new FinalizeTemplateCommand(Id));
+            Snackbar.Add("Đã chốt mẫu thành công! 🔒", Severity.Success);
+            // Reload to update UI
+            _template = await Mediator.Send(new GetTemplateDetailQuery(Id));
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Lỗi chốt: {ex.Message}", Severity.Error);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await Js.InvokeVoidAsync("templateEditor.destroy", "mce-editor");
+        }
+        catch
+        {
+            // Editor may already be gone if navigating away
+        }
+    }
+
+    private static string GetTemplateTypeLabel(Mms.Domain.Enums.TemplateType type) => type switch
+    {
+        Mms.Domain.Enums.TemplateType.Invitation => "Thư mời",
+        Mms.Domain.Enums.TemplateType.VotingCard => "Thẻ BQ",
+        Mms.Domain.Enums.TemplateType.VotingBallot => "Phiếu BQ",
+        Mms.Domain.Enums.TemplateType.ElectionHDQT => "Bầu HĐQT",
+        Mms.Domain.Enums.TemplateType.ElectionBKS => "Bầu BKS",
+        Mms.Domain.Enums.TemplateType.QuorumReport => "BB Thẩm tra",
+        Mms.Domain.Enums.TemplateType.TallyReport => "BB Kiểm phiếu",
+        _ => type.ToString()
+    };
+}

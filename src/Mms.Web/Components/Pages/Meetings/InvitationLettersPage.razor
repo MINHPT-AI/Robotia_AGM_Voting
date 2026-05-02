@@ -1,0 +1,616 @@
+@page "/meetings/{MeetingId:guid}/letters"
+@attribute [Authorize(Roles = "admin,operator")]
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@inject IDialogService DialogService
+@using Mms.Application.InvitationLetters.Commands
+@using Mms.Application.InvitationLetters.Queries
+@using Mms.Application.InvitationLetters.Dtos
+@using Mms.Domain.Entities
+
+<PageTitle>Thư mời — MMS</PageTitle>
+
+<div class="d-flex align-center justify-space-between mb-4">
+    <div>
+        <MudText Typo="Typo.h5" Style="color:#1275BC;font-weight:700">Quản lý Thư Mời</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">
+            Tạo, xuất, và theo dõi thư mời giấy gửi cổ đông
+        </MudText>
+    </div>
+    <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack"
+               Href="@($"/meetings")">
+        ← Danh sách cuộc họp
+    </MudButton>
+</div>
+
+<MudTabs @bind-ActivePanelIndex="_activeTab" Elevation="2" Rounded="true" ApplyEffectsToContainer="true"
+         PanelClass="pa-4">
+    @* ═══════ TAB 1: Tạo & Xuất ═══════ *@
+    <MudTabPanel Text="Tạo & Xuất" Icon="@Icons.Material.Filled.Description">
+        @if (_stats is null)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        }
+        else if (_stats.Total == 0)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4">
+                Chưa có thư mời nào. Bấm "Tạo danh sách thư" để bắt đầu.
+            </MudAlert>
+        }
+
+        <div class="d-flex gap-3 mb-4 flex-wrap align-center">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.AutoFixHigh"
+                       OnClick="GenerateLetters" Disabled="_generating">
+                @if (_generating)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                }
+                🔄 Tạo danh sách thư
+            </MudButton>
+
+            <MudSelect T="CodeMarkType" @bind-Value="_codeMarkType" Label="Code Mark"
+                       Variant="Variant.Outlined" Dense="true" Style="max-width:180px">
+                <MudSelectItem Value="CodeMarkType.Barcode">Barcode</MudSelectItem>
+                <MudSelectItem Value="CodeMarkType.QRCode">QR Code</MudSelectItem>
+                <MudSelectItem Value="CodeMarkType.None">Không</MudSelectItem>
+            </MudSelect>
+
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.FileDownload"
+                       Href="@($"/api/meetings/{MeetingId}/letters/export/docx?codeMarkType={(int)_codeMarkType}")"
+                       Target="_blank"
+                       Disabled="@(_stats?.Total == 0)">
+                📄 Xuất DOCX
+            </MudButton>
+
+            <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.PictureAsPdf"
+                       Href="@($"/api/meetings/{MeetingId}/letters/export/pdf?codeMarkType={(int)_codeMarkType}")"
+                       Target="_blank"
+                       Disabled="@(_stats?.Total == 0)">
+                📋 Xuất PDF
+            </MudButton>
+        </div>
+
+        @if (_stats is not null && _stats.Total > 0)
+        {
+            <div class="d-flex gap-3 flex-wrap">
+                <MudChip T="string" Color="Color.Default" Variant="Variant.Filled">
+                    Tổng: @_stats.Total
+                </MudChip>
+                <MudChip T="string" Color="Color.Info" Variant="Variant.Filled">
+                    Chưa gửi: @_stats.NotSent
+                </MudChip>
+                <MudChip T="string" Color="Color.Success" Variant="Variant.Filled">
+                    Đã gửi: @_stats.Dispatched
+                </MudChip>
+                <MudChip T="string" Color="Color.Warning" Variant="Variant.Filled">
+                    Trả lại: @_stats.Returned
+                </MudChip>
+                <MudChip T="string" Color="Color.Error" Variant="Variant.Filled">
+                    Thất bại: @_stats.Failed
+                </MudChip>
+            </div>
+        }
+    </MudTabPanel>
+
+    @* ═══════ TAB 2: Theo dõi Giao Thư ═══════ *@
+    <MudTabPanel Text="Theo dõi" Icon="@Icons.Material.Filled.LocalShipping">
+        <div class="d-flex gap-2 mb-3 flex-wrap">
+            <MudChip T="string" Color="@(_statusFilter is null ? Color.Primary : Color.Default)"
+                     Variant="Variant.Filled" OnClick="() => SetStatusFilter(null)">
+                Tất cả
+            </MudChip>
+            @foreach (var s in Enum.GetValues<InvitationStatus>())
+            {
+                var status = s;
+                <MudChip T="string" Color="@(_statusFilter == status ? GetStatusColor(status) : Color.Default)"
+                         Variant="Variant.Filled" OnClick="() => SetStatusFilter(status)">
+                    @GetStatusLabel(status)
+                </MudChip>
+            }
+        </div>
+
+        <MudDataGrid T="LetterListItem" ServerData="LoadTrackingData" @ref="_trackingGrid"
+                     Hover="true" Striped="true" Dense="true" RowsPerPage="50" Elevation="1">
+            <Columns>
+                <PropertyColumn Property="l => l.ShareholderName" Title="Họ tên" />
+                <PropertyColumn Property="l => l.ShareholderIdNumber" Title="ĐKSH" />
+                <PropertyColumn Property="l => l.ShareholderPhone" Title="SĐT" />
+                <PropertyColumn Property="l => l.TrackingCode" Title="Tracking Code" />
+                <TemplateColumn Title="Trạng thái" CellStyle="text-align:center">
+                    <CellTemplate Context="ctx">
+                        <MudChip T="string" Size="Size.Small"
+                                 Color="@GetStatusColor(ctx.Item.Status)"
+                                 Variant="Variant.Filled">
+                            @GetStatusLabel(ctx.Item.Status)
+                        </MudChip>
+                    </CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Cập nhật">
+                    <CellTemplate Context="ctx">
+                        @(ctx.Item.StatusUpdatedAt?.ToString("dd/MM HH:mm") ?? "—")
+                    </CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="" CellStyle="width:80px">
+                    <CellTemplate Context="ctx">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                       Color="Color.Primary"
+                                       OnClick="() => OpenStatusDialog(ctx.Item)" />
+                    </CellTemplate>
+                </TemplateColumn>
+            </Columns>
+            <PagerContent>
+                <MudDataGridPager T="LetterListItem" />
+            </PagerContent>
+            <NoRecordsContent>
+                <MudText Class="pa-4" Color="Color.Secondary">
+                    Chưa có thư mời. Quay lại tab "Tạo & Xuất" để tạo danh sách.
+                </MudText>
+            </NoRecordsContent>
+        </MudDataGrid>
+    </MudTabPanel>
+
+    @* ═══════ TAB 3: Import CPN ═══════ *@
+    <MudTabPanel Text="Import CPN" Icon="@Icons.Material.Filled.UploadFile">
+        @if (_cpnStep == 0)
+        {
+            @* Step 1: Upload & Column Mapping *@
+            <MudText Typo="Typo.h6" Class="mb-3">Bước 1: Tải lên file CPN</MudText>
+
+            <MudFileUpload T="IBrowserFile" FilesChanged="OnCpnFileSelected" Accept=".xlsx"
+                           MaximumFileCount="1">
+                <ActivatorContent>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.AttachFile">
+                        Chọn file Excel (.xlsx)
+                    </MudButton>
+                </ActivatorContent>
+            </MudFileUpload>
+
+
+
+            @if (_cpnHeaders.Count > 0)
+            {
+                <MudPaper Class="pa-4 mt-4" Elevation="1">
+                    <MudText Typo="Typo.subtitle1" Class="mb-3">Column Mapping:</MudText>
+                    <MudGrid>
+                        <MudItem xs="12" md="3">
+                            <MudSelect T="string" @bind-Value="_mapName" Label="Họ tên *"
+                                       Variant="Variant.Outlined" Dense="true">
+                                @foreach (var h in _cpnHeaders)
+                                {
+                                    <MudSelectItem Value="@h">@h</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" md="3">
+                            <MudSelect T="string" @bind-Value="_mapPhone" Label="Số điện thoại"
+                                       Variant="Variant.Outlined" Dense="true" Clearable="true">
+                                @foreach (var h in _cpnHeaders)
+                                {
+                                    <MudSelectItem Value="@h">@h</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" md="3">
+                            <MudSelect T="string" @bind-Value="_mapAddress" Label="Địa chỉ"
+                                       Variant="Variant.Outlined" Dense="true" Clearable="true">
+                                @foreach (var h in _cpnHeaders)
+                                {
+                                    <MudSelectItem Value="@h">@h</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" md="3">
+                            <MudSelect T="string" @bind-Value="_mapTracking" Label="Tracking Code"
+                                       Variant="Variant.Outlined" Dense="true" Clearable="true">
+                                @foreach (var h in _cpnHeaders)
+                                {
+                                    <MudSelectItem Value="@h">@h</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+
+                <div class="d-flex justify-end mt-4">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               OnClick="CpnPreview" Disabled="@(string.IsNullOrEmpty(_mapName))">
+                        Tiếp tục →
+                    </MudButton>
+                </div>
+            }
+        }
+        else if (_cpnStep == 1)
+        {
+            @* Step 2: Preview Match Results *@
+            <MudText Typo="Typo.h6" Class="mb-3">Bước 2: Xem trước kết quả ghép</MudText>
+
+            @if (_cpnPreviewLoading)
+            {
+                <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+            }
+            else if (_cpnPreviewResult is not null)
+            {
+                <div class="d-flex gap-3 mb-3 flex-wrap">
+                    <MudChip T="string" Color="@(_cpnFilter == "All" ? Color.Primary : Color.Default)" Variant="Variant.Filled" OnClick="@(() => _cpnFilter = "All")">
+                        Tất cả: @(_cpnPreviewResult.Matched + _cpnPreviewResult.LowConfidence + _cpnPreviewResult.Unmatched)
+                    </MudChip>
+                    <MudChip T="string" Color="@(_cpnFilter == "High" ? Color.Success : Color.Default)" Variant="Variant.Filled" OnClick="@(() => _cpnFilter = "High")">
+                        Khớp (High): @_cpnPreviewResult.Matched
+                    </MudChip>
+                    <MudChip T="string" Color="@(_cpnFilter == "Low" ? Color.Warning : Color.Default)" Variant="Variant.Filled" OnClick="@(() => _cpnFilter = "Low")">
+                        Khớp (Low): @_cpnPreviewResult.LowConfidence
+                    </MudChip>
+                    <MudChip T="string" Color="@(_cpnFilter == "NoMatch" ? Color.Error : Color.Default)" Variant="Variant.Filled" OnClick="@(() => _cpnFilter = "NoMatch")">
+                        Không khớp: @_cpnPreviewResult.Unmatched
+                    </MudChip>
+                </div>
+
+                <MudSimpleTable Hover="true" Dense="true" Striped="true" Bordered="true"
+                                Style="max-height:400px;overflow-y:auto">
+                    <thead>
+                        <tr>
+                            <th>Tên CPN</th>
+                            <th>Tên DB</th>
+                            <th>Tracking Code</th>
+                            <th>Tier</th>
+                            <th>Confidence</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in _cpnPreviewResult.Details.Where(r => _cpnFilter == "All" || r.Confidence == _cpnFilter))
+                        {
+                            var rowStyle = r.Confidence == "Low" ? "background-color:#FFF3E0" :
+                                          r.Confidence == "NoMatch" ? "background-color:#FFEBEE" : "";
+                            <tr style="@rowStyle">
+                                <td>@r.CpnName</td>
+                                <td>@(r.MatchedDbName ?? "—")</td>
+                                <td>@(r.TrackingCode ?? "—")</td>
+                                <td>@r.Tier</td>
+                                <td>@r.Confidence</td>
+                                <td>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small"
+                                                   Color="Color.Primary" OnClick="() => OpenCompareDialog(r)" />
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+
+                <div class="d-flex justify-space-between mt-4">
+                    <MudButton Variant="Variant.Text" OnClick="() => _cpnStep = 0">
+                        ← Quay lại
+                    </MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Success"
+                               OnClick="CpnConfirmImport" Disabled="_cpnImporting">
+                        @if (_cpnImporting)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        }
+                        ✅ Xác nhận Import
+                    </MudButton>
+                </div>
+            }
+        }
+        else if (_cpnStep == 2)
+        {
+            @* Step 3: Results *@
+            <MudText Typo="Typo.h6" Class="mb-3">Bước 3: Kết quả</MudText>
+
+            <MudAlert Severity="Severity.Success" Variant="Variant.Filled" Class="mb-4">
+                Đã cập nhật @(_cpnFinalResult?.Matched ?? 0) / @((_cpnFinalResult?.Matched ?? 0) + (_cpnFinalResult?.Unmatched ?? 0)) cổ đông
+            </MudAlert>
+
+            @if (_cpnFinalResult?.LowConfidence > 0)
+            {
+                <MudAlert Severity="Severity.Warning" Class="mb-3">
+                    @_cpnFinalResult.LowConfidence dòng độ tin cậy thấp — cần review thủ công ở Tab "Theo dõi"
+                </MudAlert>
+            }
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       OnClick="CpnDone">
+                Xong → Chuyển sang Theo dõi
+            </MudButton>
+        }
+    </MudTabPanel>
+</MudTabs>
+
+@* ═══════ Status Edit Dialog ═══════ *@
+<MudDialog @bind-Visible="_statusDialogVisible" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true }">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Cập nhật trạng thái: @(_editingLetter?.ShareholderName)</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudSelect T="InvitationStatus" @bind-Value="_editStatus" Label="Trạng thái"
+                   Variant="Variant.Outlined" Class="mb-3">
+            @foreach (var s in Enum.GetValues<InvitationStatus>())
+            {
+                <MudSelectItem Value="@s">@GetStatusLabel(s)</MudSelectItem>
+            }
+        </MudSelect>
+        <MudTextField @bind-Value="_editFailureReason" Label="Lý do (nếu thất bại)"
+                      Variant="Variant.Outlined" Lines="2" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => _statusDialogVisible = false">Hủy</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveStatus">Lưu</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ═══════ CPN Compare Dialog ═══════ *@
+<MudDialog @bind-Visible="_compareDialogVisible" Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true }">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Chi tiết đối chiếu: @(_compareData?.CpnName)</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_compareData != null)
+        {
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.subtitle1" Color="Color.Primary" Class="mb-2"><strong>Dữ liệu CPN</strong></MudText>
+                    <MudText><strong>Tên:</strong> @_compareData.CpnName</MudText>
+                    <MudText><strong>SĐT:</strong> @(_compareData.CpnPhone ?? "—")</MudText>
+                    <MudText><strong>Địa chỉ:</strong> @(_compareData.CpnAddress ?? "—")</MudText>
+                    <MudText><strong>Tracking:</strong> @(_compareData.TrackingCode ?? "—")</MudText>
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.subtitle1" Color="Color.Secondary" Class="mb-2"><strong>Dữ liệu Hệ Thống</strong></MudText>
+                    <MudText><strong>Tên:</strong> @(_compareData.MatchedDbName ?? "—")</MudText>
+                    <MudText><strong>SĐT:</strong> @(_compareData.DbPhone ?? "—")</MudText>
+                    <MudText><strong>Địa chỉ:</strong> @(_compareData.DbAddress ?? "—")</MudText>
+                </MudItem>
+            </MudGrid>
+            <MudDivider Class="my-3" />
+            <MudText><strong>Cấp độ khớp:</strong> @_compareData.Tier</MudText>
+            <MudText><strong>Độ tin cậy:</strong> @_compareData.Confidence</MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => _compareDialogVisible = false">Đóng</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public Guid MeetingId { get; set; }
+
+    // Tab control
+    private int _activeTab;
+
+    // Tab 1 state
+    private LetterStatsDto? _stats;
+    private CodeMarkType _codeMarkType = CodeMarkType.Barcode;
+    private bool _generating;
+
+    // Tab 2 state
+    private MudDataGrid<LetterListItem>? _trackingGrid;
+    private InvitationStatus? _statusFilter;
+
+    // Tab 2 — Status dialog
+    private bool _statusDialogVisible;
+    private LetterListItem? _editingLetter;
+    private InvitationStatus _editStatus;
+    private string? _editFailureReason;
+
+    // Tab 3 — CPN Import
+    private int _cpnStep; // 0=upload, 1=preview, 2=done
+    private string? _cpnFileName;
+    private byte[]? _cpnFileBytes;
+    private List<string> _cpnHeaders = new();
+    private string? _mapName, _mapPhone, _mapAddress, _mapTracking;
+    private bool _cpnPreviewLoading, _cpnImporting;
+    private CpnImportResult? _cpnPreviewResult;
+    private CpnImportResult? _cpnFinalResult;
+    private string _cpnFilter = "All";
+    private bool _compareDialogVisible;
+    private CpnMatchResultDto? _compareData;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStats();
+    }
+
+    // ── Tab 1 ──
+
+    private async Task LoadStats()
+    {
+        _stats = await Mediator.Send(new GetLetterStatsQuery(MeetingId));
+    }
+
+    private async Task GenerateLetters()
+    {
+        _generating = true;
+        try
+        {
+            var count = await Mediator.Send(new GenerateLettersCommand(MeetingId));
+            if (count > 0)
+                Snackbar.Add($"Đã tạo {count:N0} thư mời mới", Severity.Success);
+            else
+                Snackbar.Add("Tất cả thư mời đã được tạo trước đó", Severity.Info);
+            await LoadStats();
+            _trackingGrid?.ReloadServerData();
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Chưa có"))
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+        catch (Exception ex) { Snackbar.Add("Lỗi: " + ex.Message, Severity.Error); }
+        finally { _generating = false; }
+    }
+
+    // ── Tab 2 ──
+
+    private async Task<GridData<LetterListItem>> LoadTrackingData(
+        GridState<LetterListItem> state, CancellationToken ct)
+    {
+        var result = await Mediator.Send(new GetLettersQuery(
+            MeetingId, _statusFilter, null, state.Page + 1, state.PageSize), ct);
+
+        return new GridData<LetterListItem>
+        {
+            Items = result.Items,
+            TotalItems = result.TotalCount
+        };
+    }
+
+    private void SetStatusFilter(InvitationStatus? status)
+    {
+        _statusFilter = status;
+        _trackingGrid?.ReloadServerData();
+    }
+
+    private void OpenStatusDialog(LetterListItem letter)
+    {
+        _editingLetter = letter;
+        _editStatus = letter.Status;
+        _editFailureReason = letter.FailureReason;
+        _statusDialogVisible = true;
+    }
+
+    private async Task SaveStatus()
+    {
+        if (_editingLetter is null) return;
+
+        var success = await Mediator.Send(new UpdateLetterStatusCommand(
+            _editingLetter.Id, _editStatus, _editFailureReason));
+
+        if (success)
+        {
+            Snackbar.Add("Đã cập nhật trạng thái", Severity.Success);
+            _statusDialogVisible = false;
+            _trackingGrid?.ReloadServerData();
+            await LoadStats();
+        }
+        else
+        {
+            Snackbar.Add("Không tìm thấy thư mời", Severity.Error);
+        }
+    }
+
+    // ── Tab 3 — CPN Import ──
+
+    private async Task OnCpnFileSelected(IBrowserFile? file)
+    {
+        if (file is null)
+        {
+            _cpnFileName = null;
+            _cpnFileBytes = null;
+            _cpnHeaders.Clear();
+            _mapName = null;
+            _mapPhone = null;
+            _mapAddress = null;
+            _mapTracking = null;
+            StateHasChanged();
+            return;
+        }
+
+        _cpnFileName = file.Name;
+        using var ms = new MemoryStream();
+        await file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024).CopyToAsync(ms);
+        _cpnFileBytes = ms.ToArray();
+
+        // Read headers
+        _cpnHeaders.Clear();
+        using var wb = new ClosedXML.Excel.XLWorkbook(new MemoryStream(_cpnFileBytes));
+        var ws = wb.Worksheets.First();
+        var headerRow = ws.FirstRowUsed();
+        if (headerRow is not null)
+        {
+            foreach (var cell in headerRow.CellsUsed())
+            {
+                var text = cell.GetString()?.Trim() ?? "";
+                if (!string.IsNullOrWhiteSpace(text))
+                    _cpnHeaders.Add(text);
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task CpnPreview()
+    {
+        if (_cpnFileBytes is null || string.IsNullOrEmpty(_mapName)) return;
+
+        _cpnPreviewLoading = true;
+        _cpnStep = 1;
+        StateHasChanged();
+
+        try
+        {
+            var mapping = new CpnColumnMapping(_mapName, _mapPhone, _mapAddress, _mapTracking);
+            using var stream = new MemoryStream(_cpnFileBytes);
+            _cpnPreviewResult = await Mediator.Send(new ImportCpnReportCommand(
+                MeetingId, stream, mapping, DryRun: true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Lỗi: {ex.Message}", Severity.Error);
+            _cpnStep = 0;
+        }
+        finally { _cpnPreviewLoading = false; }
+    }
+
+    private async Task CpnConfirmImport()
+    {
+        if (_cpnFileBytes is null || string.IsNullOrEmpty(_mapName)) return;
+
+        _cpnImporting = true;
+        try
+        {
+            var mapping = new CpnColumnMapping(_mapName, _mapPhone, _mapAddress, _mapTracking);
+            using var stream = new MemoryStream(_cpnFileBytes);
+            _cpnFinalResult = await Mediator.Send(new ImportCpnReportCommand(
+                MeetingId, stream, mapping, DryRun: false));
+            _cpnStep = 2;
+            Snackbar.Add("Import CPN hoàn tất!", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add($"Lỗi: {ex.Message}", Severity.Error); }
+        finally { _cpnImporting = false; }
+    }
+
+    private void CpnDone()
+    {
+        _cpnStep = 0;
+        _cpnFileBytes = null;
+        _cpnFileName = null;
+        _cpnHeaders.Clear();
+        _cpnPreviewResult = null;
+        _cpnFinalResult = null;
+        _activeTab = 1; // Switch to tracking tab
+        _trackingGrid?.ReloadServerData();
+        _ = LoadStats();
+    }
+
+    // ── Helpers ──
+
+    private void OpenCompareDialog(CpnMatchResultDto data)
+    {
+        _compareData = data;
+        _compareDialogVisible = true;
+    }
+
+    private static Color GetStatusColor(InvitationStatus status) => status switch
+    {
+        InvitationStatus.NotSent    => Color.Default,
+        InvitationStatus.Dispatched => Color.Info,
+        InvitationStatus.Delivered  => Color.Success,
+        InvitationStatus.Failed     => Color.Error,
+        InvitationStatus.Returned   => Color.Warning,
+        _                           => Color.Default,
+    };
+
+    private static string GetStatusLabel(InvitationStatus status) => status switch
+    {
+        InvitationStatus.NotSent    => "Chưa gửi",
+        InvitationStatus.Dispatched => "Đã gửi",
+        InvitationStatus.Delivered  => "Đã nhận",
+        InvitationStatus.Failed     => "Thất bại",
+        InvitationStatus.Returned   => "Trả lại",
+        _                           => status.ToString(),
+    };
+}

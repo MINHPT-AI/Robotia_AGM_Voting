@@ -1,0 +1,175 @@
+@using Mms.Application.Shareholders.Dtos
+@using Mms.Application.Meetings.Dtos
+@using Mms.Infrastructure.Parsing
+@inject IDialogService DialogService
+
+<MudPaper Elevation="2" Class="pa-6">
+    <MudText Typo="Typo.h6" Class="mb-3" Style="color:#1275BC;">Kiểm tra dữ liệu</MudText>
+
+    @if (ValidationResult != null && MappedRows != null)
+    {
+        @* Summary cards *@
+        <MudGrid Class="mb-4">
+            <MudItem xs="4">
+                <MudPaper Elevation="0" Class="pa-4 d-flex align-center gap-3"
+                          Style="background:#e8f5e9;border-radius:10px;">
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Large" />
+                    <div>
+                        <MudText Typo="Typo.h5" Style="font-weight:700;color:#2e7d32;">@_cleanCount</MudText>
+                        <MudText Typo="Typo.caption">Hợp lệ</MudText>
+                    </div>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="4">
+                <MudPaper Elevation="0" Class="pa-4 d-flex align-center gap-3"
+                          Style="background:#fff3e0;border-radius:10px;">
+                    <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" Size="Size.Large" />
+                    <div>
+                        <MudText Typo="Typo.h5" Style="font-weight:700;color:#e65100;">@ValidationResult.Warnings.Count</MudText>
+                        <MudText Typo="Typo.caption">Cảnh báo</MudText>
+                    </div>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="4">
+                <MudPaper Elevation="0" Class="pa-4 d-flex align-center gap-3"
+                          Style="background:#e3f2fd;border-radius:10px;">
+                    <MudIcon Icon="@Icons.Material.Filled.Info" Color="Color.Info" Size="Size.Large" />
+                    <div>
+                        <MudText Typo="Typo.h5" Style="font-weight:700;color:#1565c0;">@MappedRows.Count</MudText>
+                        <MudText Typo="Typo.caption">Tổng dòng</MudText>
+                    </div>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+
+        @* Filter toolbar *@
+        <div class="d-flex align-center gap-3 mb-3">
+            <MudChipSet T="string" SelectionMode="SelectionMode.SingleSelection" SelectedValueChanged="OnFilterChanged">
+                <MudChip T="string" Value="@("all")" Default="true" Variant="Variant.Outlined">Tất cả (@MappedRows.Count)</MudChip>
+                <MudChip T="string" Value="@("warning")" Color="Color.Warning" Variant="Variant.Outlined">Cảnh báo (@ValidationResult.Warnings.Count)</MudChip>
+                <MudChip T="string" Value="@("clean")" Color="Color.Success" Variant="Variant.Outlined">Hợp lệ (@_cleanCount)</MudChip>
+            </MudChipSet>
+        </div>
+
+        @* Data table *@
+        <MudSimpleTable Dense="true" Hover="true" Bordered="true" Style="font-size:0.85rem;max-height:400px;overflow-y:auto;">
+            <thead>
+                <tr>
+                    <th style="width:40px;">#</th>
+                    <th>Số ĐKSH</th>
+                    <th>Họ và tên</th>
+                    <th style="text-align:right;">QBQ</th>
+                    <th style="width:260px;">Trạng thái</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in _filteredRows)
+                {
+                    var status = GetRowStatus(row.RowIndex);
+                    <tr style="@(status.Color != null ? $"background:{status.Color};" : "")">
+                        <td>@row.VsdcRow</td>
+                        <td><code>@row.IdNumber</code></td>
+                        <td>@row.FullName</td>
+                        <td style="text-align:right;">@row.VotingRights.ToString("N0")</td>
+                        <td>
+                            <MudChip T="string" Size="Size.Small"
+                                     Color="@status.Severity" Variant="Variant.Filled">
+                                @status.Label
+                            </MudChip>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </MudSimpleTable>
+
+        @* VĐL progress bar *@
+        @if (Meeting != null && Meeting.TotalVotingShares > 0)
+        {
+            var totalVR = MappedRows.Sum(r => r.VotingRights);
+            var pct = Math.Min(100.0, (double)totalVR / Meeting.TotalVotingShares * 100);
+            <MudPaper Elevation="0" Class="pa-3 mt-4" Style="background:#f2f4f6;border-radius:8px;">
+                <MudText Typo="Typo.caption">
+                    Tổng QBQ import: <strong>@totalVR.ToString("N0")</strong> / VĐL: <strong>@Meeting.TotalVotingShares.ToString("N0")</strong>
+                    (@pct.ToString("F1")%)
+                </MudText>
+                <MudProgressLinear Value="@pct" Color="@(pct > 100 ? Color.Warning : Color.Primary)"
+                                   Class="mt-1" Rounded="true" Size="Size.Medium" />
+            </MudPaper>
+        }
+
+        @* Actions — single Import button *@
+        <div class="d-flex justify-end gap-2 mt-4">
+            <MudButton Variant="Variant.Outlined" Color="Color.Default" OnClick="OnBack">Quay lại</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Upload"
+                       OnClick="HandleImportClick">
+                Import @MappedRows.Count dòng
+            </MudButton>
+        </div>
+    }
+</MudPaper>
+
+@code {
+    [Parameter] public List<ShareholderImportDto>? MappedRows { get; set; }
+    [Parameter] public VsdcValidationResult? ValidationResult { get; set; }
+    [Parameter] public MeetingDetailDto? Meeting { get; set; }
+    [Parameter] public EventCallback OnImport { get; set; }
+    [Parameter] public EventCallback OnBack { get; set; }
+
+    private string _filter = "all";
+    private List<ShareholderImportDto> _filteredRows = new();
+    private int _cleanCount;
+    private HashSet<int> _warningRows = new();
+
+    protected override void OnParametersSet()
+    {
+        if (ValidationResult != null)
+            _warningRows = ValidationResult.Warnings.Select(w => w.RowIndex).ToHashSet();
+        if (MappedRows != null)
+            _cleanCount = MappedRows.Count(r => !_warningRows.Contains(r.RowIndex));
+        ApplyFilter();
+    }
+
+    private void OnFilterChanged(string? value)
+    {
+        _filter = value ?? "all";
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        if (MappedRows == null) { _filteredRows = new(); return; }
+        _filteredRows = _filter switch
+        {
+            "warning" => MappedRows.Where(r => _warningRows.Contains(r.RowIndex)).ToList(),
+            "clean" => MappedRows.Where(r => !_warningRows.Contains(r.RowIndex)).ToList(),
+            _ => MappedRows
+        };
+    }
+
+    private async Task HandleImportClick()
+    {
+        if (ValidationResult != null && ValidationResult.Warnings.Count > 0)
+        {
+            // Show confirmation dialog when there are warnings
+            var result = await DialogService.ShowMessageBoxAsync(
+                "Xác nhận Import",
+                $"File có {ValidationResult.Warnings.Count} cảnh báo. Bạn có đồng ý bỏ qua rủi ro và nạp toàn bộ {MappedRows?.Count ?? 0} dòng dữ liệu vào hệ thống không?",
+                yesText: "Đồng ý Import", cancelText: "Hủy");
+
+            if (result != true) return;
+        }
+
+        await OnImport.InvokeAsync();
+    }
+
+    private (string Label, Color Severity, string? Color) GetRowStatus(int rowIndex)
+    {
+        if (_warningRows.Contains(rowIndex))
+        {
+            var warn = ValidationResult?.Warnings.FirstOrDefault(w => w.RowIndex == rowIndex);
+            return (warn?.Message ?? "Cảnh báo", MudBlazor.Color.Warning, "#fff3e0");
+        }
+        return ("Hợp lệ", MudBlazor.Color.Success, null);
+    }
+}
